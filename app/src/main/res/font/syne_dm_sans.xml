@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <!-- Syne variable font (wght 400-800) — used for display/headlines. -->
+    <font
+        android:font="@font/syne_variable"
+        android:fontStyle="normal"
+        android:fontWeight="400"
+        app:font="@font/syne_variable"
+        app:fontStyle="normal"
+        app:fontWeight="400" />
+
+    <!-- DM Sans variable font (opsz 9-40, wght 100-1000) — used for body text. -->
+    <font
+        android:font="@font/dm_sans_variable"
+        android:fontStyle="normal"
+        android:fontWeight="400"
+        app:font="@font/dm_sans_variable"
+        app:fontStyle="normal"
+        app:fontWeight="400" />
+</font-family>

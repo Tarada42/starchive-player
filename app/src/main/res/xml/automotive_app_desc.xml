@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Declares STArchive as a "media" category app for Android Auto / Automotive OS. -->
+<automotiveApp>
+    <uses name="media" />
+</automotiveApp>

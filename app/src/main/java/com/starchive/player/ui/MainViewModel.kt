@@ -1,0 +1,139 @@
+package com.starchive.player.ui
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.starchive.player.data.Artist
+import com.starchive.player.data.Repository
+import com.starchive.player.data.Track
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+    data class Success<T>(val data: T) : UiState<T>
+    data class Error(val message: String) : UiState<Nothing>
+}
+
+enum class ArtistSort { NAME, DATE }
+
+class MainViewModel(private val repo: Repository) : ViewModel() {
+
+    private val _tracks = MutableStateFlow<UiState<List<Track>>>(UiState.Loading)
+    val tracks: StateFlow<UiState<List<Track>>> = _tracks.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<UiState<List<Track>>>(UiState.Success(emptyList()))
+    val searchResults: StateFlow<UiState<List<Track>>> = _searchResults.asStateFlow()
+
+    private val _artistSort = MutableStateFlow(ArtistSort.NAME)
+    val artistSort: StateFlow<ArtistSort> = _artistSort.asStateFlow()
+
+    private val _favoriteTrackObjects = MutableStateFlow<UiState<List<Track>>>(UiState.Success(emptyList()))
+    val favoriteTrackObjects: StateFlow<UiState<List<Track>>> = _favoriteTrackObjects.asStateFlow()
+
+    /** Artists exposed with their avatars; loading state derived from emptiness. */
+    val artists: StateFlow<UiState<List<Artist>>> = repo.artists
+        .combine(_artistSort) { list, sort ->
+            val sorted = when (sort) {
+                ArtistSort.NAME -> list.sortedBy { it.displayName.lowercase() }
+                ArtistSort.DATE -> {
+                    // We don't have a global last-stream date per artist without fetching
+                    // every artist's track list (expensive), so fall back to id ordering
+                    // until a richer per-artist "last seen" signal is available.
+                    list.sortedByDescending { it.id }
+                }
+            }
+            if (list.isEmpty()) UiState.Loading else UiState.Success(sorted)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+
+    val favoriteTracks: StateFlow<Set<String>> = repo.favoriteTracks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val favoriteArtists: StateFlow<Set<String>> = repo.favoriteArtists
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val recentSearches: StateFlow<List<String>> = repo.recentSearches
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun loadArtists(forceRefresh: Boolean = false) {
+        viewModelScope.launch {
+            runCatching { repo.loadArtists(forceRefresh) }
+                .onFailure { /* error surfaced through empty artists flow */ }
+            launch { repo.refreshAvatars() }
+        }
+    }
+
+    fun setArtistSort(sort: ArtistSort) {
+        _artistSort.value = sort
+    }
+
+    fun loadTracks(artist: Artist) {
+        _tracks.value = UiState.Loading
+        viewModelScope.launch {
+            runCatching { repo.tracks(artist) }
+                .onSuccess { _tracks.value = UiState.Success(it) }
+                .onFailure { _tracks.value = UiState.Error(it.message ?: "Could not load tracks") }
+        }
+    }
+
+    /** Resolves favorite track ids into full track objects (artwork, url, etc). */
+    fun loadFavoriteTrackObjects() {
+        viewModelScope.launch {
+            _favoriteTrackObjects.value = UiState.Loading
+            val ids = favoriteTracks.value
+            runCatching { repo.favoriteTrackObjects(ids) }
+                .onSuccess { _favoriteTrackObjects.value = UiState.Success(it) }
+                .onFailure { _favoriteTrackObjects.value = UiState.Error(it.message ?: "Could not load favorites") }
+        }
+    }
+
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+        if (query.isBlank()) {
+            _searchResults.value = UiState.Success(emptyList())
+            return
+        }
+        viewModelScope.launch {
+            _searchResults.value = UiState.Loading
+            runCatching { repo.search(query) }
+                .onSuccess { _searchResults.value = UiState.Success(it) }
+                .onFailure { _searchResults.value = UiState.Error(it.message ?: "Search failed") }
+        }
+    }
+
+    /** Records a committed search (e.g. submit / track tapped) into persisted history. */
+    fun recordSearch(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch { repo.recordSearch(query) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch { repo.clearSearchHistory() }
+    }
+
+    fun toggleFavoriteTrack(track: Track) {
+        viewModelScope.launch { repo.toggleFavoriteTrack(track) }
+    }
+
+    fun toggleFavoriteArtist(artist: Artist) {
+        viewModelScope.launch { repo.toggleFavoriteArtist(artist) }
+    }
+
+    class Factory(private val context: Context) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            require(modelClass == MainViewModel::class.java)
+            return MainViewModel(Repository(context)) as T
+        }
+    }
+}
