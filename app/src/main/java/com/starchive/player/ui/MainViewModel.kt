@@ -40,6 +40,10 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     private val _favoriteTrackObjects = MutableStateFlow<UiState<List<Track>>>(UiState.Success(emptyList()))
     val favoriteTrackObjects: StateFlow<UiState<List<Track>>> = _favoriteTrackObjects.asStateFlow()
 
+    /** Last network failure while loading artists, so the UI can show a real error
+        instead of sitting on Loading forever when the server is unreachable. */
+    private val _artistsLoadError = MutableStateFlow<String?>(null)
+
     /** Artists exposed with their avatars; loading state derived from emptiness. */
     val artists: StateFlow<UiState<List<Artist>>> = repo.artists
         .combine(_artistSort) { list, sort ->
@@ -52,7 +56,12 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
                     list.sortedByDescending { it.id }
                 }
             }
-            if (list.isEmpty()) UiState.Loading else UiState.Success(sorted)
+            when {
+                list.isEmpty() && _artistsLoadError.value != null ->
+                    UiState.Error(_artistsLoadError.value ?: "Could not load artists")
+                list.isEmpty() -> UiState.Loading
+                else -> UiState.Success(sorted)
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
@@ -67,8 +76,9 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
 
     fun loadArtists(forceRefresh: Boolean = false) {
         viewModelScope.launch {
+            _artistsLoadError.value = null
             runCatching { repo.loadArtists(forceRefresh) }
-                .onFailure { /* error surfaced through empty artists flow */ }
+                .onFailure { e -> _artistsLoadError.value = e.message ?: "Could not load artists" }
             launch { repo.refreshAvatars() }
         }
     }
