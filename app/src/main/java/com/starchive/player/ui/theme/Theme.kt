@@ -43,7 +43,6 @@ private val DarkScheme = darkColorScheme(
     onSecondary = TextPrimary,
     tertiary = Secondary,
     onTertiary = TextPrimary,
-    surfaceVariant = SurfaceVariant,
     surfaceContainerHighest = SurfaceHigh,
     error = AccentRed,
     onError = TextPrimary,
