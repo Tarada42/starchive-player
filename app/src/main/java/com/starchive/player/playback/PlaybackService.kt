@@ -172,6 +172,9 @@ class PlaybackService : MediaLibraryService() {
         val query = requestItem.requestMetadata.searchQuery
 
         return when {
+            // Live restreams carry their own playable URL/MIME; keep them as-is rather
+            // than trying to resolve against the archive (they have no track file id).
+            mediaId.startsWith(LIVE_PREFIX) -> listOf(requestItem)
             mediaId.startsWith(ARTIST_PREFIX) -> {
                 val artistId = mediaId.removePrefix(ARTIST_PREFIX)
                 tracksForArtistId(artistId).map { it.toMediaItem() }
@@ -284,5 +287,6 @@ class PlaybackService : MediaLibraryService() {
         const val SEARCH_HISTORY_ID = "search_history"
         const val ARTIST_PREFIX = "artist:"
         const val SEARCH_PREFIX = "search:"
+        const val LIVE_PREFIX = "live-"
     }
 }
