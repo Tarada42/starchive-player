@@ -71,6 +71,14 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     val favoriteArtists: StateFlow<Set<String>> = repo.favoriteArtists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    /** DJs that are live right now (Twitch usernames from live.streambox.space). */
+    val liveArtists: StateFlow<List<Artist>> = repo.liveUsernames
+        .combine(repo.artists) { _, _ -> repo.liveArtists() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Playable HQ restream URL for a live DJ's Twitch channel. */
+    fun liveStreamUrl(username: String): String = repo.liveStreamUrl(username)
+
     val recentSearches: StateFlow<List<String>> = repo.recentSearches
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -80,7 +88,12 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
             runCatching { repo.loadArtists(forceRefresh) }
                 .onFailure { e -> _artistsLoadError.value = e.message ?: "Could not load artists" }
             launch { repo.refreshAvatars() }
+            launch { repo.loadLive() }
         }
+    }
+
+    fun loadLive(forceRefresh: Boolean = false) {
+        viewModelScope.launch { repo.loadLive(forceRefresh) }
     }
 
     fun setArtistSort(sort: ArtistSort) {

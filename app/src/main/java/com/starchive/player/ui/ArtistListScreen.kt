@@ -7,13 +7,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
@@ -52,8 +59,10 @@ fun ArtistListScreen(
     favoriteArtistIds: Set<String>,
     sort: ArtistSort,
     isDark: Boolean,
+    liveArtists: List<Artist> = emptyList(),
     onSortChange: (ArtistSort) -> Unit,
     onArtistClick: (Artist) -> Unit,
+    onLiveClick: (Artist) -> Unit = {},
     onToggleFavorite: (Artist) -> Unit,
     onToggleTheme: () -> Unit,
     modifier: Modifier = Modifier,
@@ -114,6 +123,9 @@ fun ArtistListScreen(
                     onClick = { onSortChange(ArtistSort.DATE) },
                     label = { Text("Date") },
                 )
+            }
+            if (liveArtists.isNotEmpty()) {
+                LiveNowSection(artists = liveArtists, onLiveClick = onLiveClick)
             }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -214,5 +226,102 @@ private fun ArtistCard(
                 }
             }
         }
+    }
+}
+
+/** Horizontal "Live now" row: DJs currently broadcasting on live.streambox.space. */
+@Composable
+private fun LiveNowSection(
+    artists: List<Artist>,
+    onLiveClick: (Artist) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFEF4444)),
+            )
+            Text(
+                "Live now",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(artists, key = { it.id }) { artist ->
+                LiveArtistItem(artist = artist, onClick = { onLiveClick(artist) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveArtistItem(
+    artist: Artist,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(84.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            artist.bestImageUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = artist.displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            // Small LIVE badge in the corner.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = 0.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFFEF4444))
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
+            ) {
+                Text(
+                    "LIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+            }
+        }
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = artist.displayName,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

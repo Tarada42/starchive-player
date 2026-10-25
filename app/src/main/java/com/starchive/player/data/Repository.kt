@@ -27,6 +27,10 @@ class Repository(
     private val _artists = MutableStateFlow<List<Artist>>(emptyList())
     val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
 
+    /** Twitch usernames currently live on live.streambox.space (empty until first fetch). */
+    private val _liveUsernames = MutableStateFlow<List<String>>(emptyList())
+    val liveUsernames: StateFlow<List<String>> = _liveUsernames.asStateFlow()
+
     @Volatile
     private var artistsLoaded = false
 
@@ -42,6 +46,22 @@ class Repository(
         val fresh = scraper.fetchArtists().withCachedAvatars()
         _artists.value = fresh
         artistsLoaded = true
+    }
+
+    /**
+     * Fetch which DJs are live right now. Keeps the raw username list; the UI maps
+     * these onto artists (matching by id, which equals the Twitch username).
+     */
+    suspend fun loadLive(forceRefresh: Boolean = false) {
+        if (!forceRefresh && _liveUsernames.value.isNotEmpty()) return
+        _liveUsernames.value = scraper.fetchLiveUsernames()
+    }
+
+    /** Live DJs that also exist in the artist list, with their current avatar. */
+    fun liveArtists(): List<Artist> {
+        val byName = _artists.value.associateBy { it.id.lowercase() }
+        return _liveUsernames.value
+            .mapNotNull { byName[it.lowercase()] }
     }
 
     /**

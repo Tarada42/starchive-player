@@ -115,6 +115,34 @@ class Scraper(
         }
     }
 
+    /**
+     * Fetch the usernames of DJs that are live right now, from the Icecast restream
+     * page at live.streambox.space. The page lists one mount point per live DJ, e.g.
+     * "Mountpoint /glog78" with "restream from https://www.twitch.tv/glog78". We pull
+     * every unique Twitch username referenced on the page.
+     */
+    suspend fun fetchLiveUsernames(): List<String> = withContext(Dispatchers.IO) {
+        val url = "https://live.streambox.space/"
+        val req = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
+        try {
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext emptyList<String>()
+                val html = resp.body?.string() ?: return@withContext emptyList<String>()
+                val found = LinkedHashSet<String>()
+                val twitchRe = Pattern.compile("twitch\\.tv/([A-Za-z0-9_]+)", Pattern.CASE_INSENSITIVE)
+                val m = twitchRe.matcher(html)
+                while (m.find()) found.add(m.group(1))
+                found.toList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** Build the playable restream URL for a live DJ's Twitch channel. */
+    fun liveStreamUrl(username: String): String =
+        "https://live.streambox.space/${username.lowercase(Locale.ROOT)}_hq.m3u"
+
     // --- helpers ---
 
     private fun getDoc(url: String): Document {

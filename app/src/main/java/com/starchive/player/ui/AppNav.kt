@@ -30,6 +30,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.starchive.player.data.Artist
+import com.starchive.player.data.Track
 import com.starchive.player.playback.PlaybackManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +91,7 @@ fun AppNav(
     val favoriteArtistIds by viewModel.favoriteArtists.collectAsStateWithLifecycle()
     val favoriteTrackObjects by viewModel.favoriteTrackObjects.collectAsStateWithLifecycle()
     val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
+    val liveArtists by viewModel.liveArtists.collectAsStateWithLifecycle()
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
 
     LaunchedEffect(Unit) {
@@ -131,11 +133,26 @@ fun AppNav(
                         favoriteArtistIds = favoriteArtistIds,
                         sort = artistSort,
                         isDark = isDark,
+                        liveArtists = liveArtists,
                         onSortChange = viewModel::setArtistSort,
                         onArtistClick = { artist ->
                             selectedArtist = artist
                             viewModel.loadTracks(artist)
                             navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
+                        },
+                        onLiveClick = { artist ->
+                            // Play the DJ's current live restream (HQ MP3).
+                            val liveTrack = Track(
+                                id = "live-${artist.id}",
+                                artistId = artist.id,
+                                artistName = artist.displayName,
+                                title = "${artist.displayName} — LIVE",
+                                url = viewModel.liveStreamUrl(artist.id),
+                                thumbnailUrl = artist.bestImageUrl,
+                                dateMillis = System.currentTimeMillis(),
+                            )
+                            manager.play(listOf(liveTrack), 0)
+                            navController.navigate(PlayerRoute)
                         },
                         onToggleFavorite = { artist ->
                             viewModel.toggleFavoriteArtist(artist)
