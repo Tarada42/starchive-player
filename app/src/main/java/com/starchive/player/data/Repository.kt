@@ -2,6 +2,8 @@ package com.starchive.player.data
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +28,8 @@ class Repository(
     private val searchHistoryDataStore = SearchHistoryDataStore(appContext)
     private val avatarCacheFile = File(appContext.cacheDir, "avatar_cache.json")
     private val avatarCache: MutableMap<String, String> = loadAvatarCache().toMutableMap()
+    private val avatarCacheTimesFile = File(appContext.cacheDir, "avatar_cache_times.json")
+    private val avatarCacheTimes: MutableMap<String, Long> = loadAvatarCacheTimes().toMutableMap()
     private val datesCacheFile = File(appContext.cacheDir, "dates_cache.json")
     private val datesCache: MutableMap<String, Long> = loadDatesCache().toMutableMap()
 
@@ -99,22 +103,27 @@ class Repository(
         _liveUsernames.value = usernames
         refreshLiveArtists()
 
-        // Fetch missing avatars for live DJs in parallel (no artificial delay — the
-        // live roster is small, well under decapi's 100/min rate limit).
+        // Fetch avatars for live DJs that don't have a fresh (>24h) cached one, in
+        // parallel. TTL keeps decapi load low across repeated tab openings.
+        val now = System.currentTimeMillis()
         coroutineScope {
-            usernames.map { uname ->
-                launch {
-                    val lower = uname.lowercase()
-                    if (avatarCache[lower] == null) {
-                        scraper.fetchTwitchAvatar(uname)?.let { avatar ->
+            usernames
+                .filter { uname -> now - (avatarCacheTimes[uname.lowercase()] ?: 0L) >= AVATAR_TTL_MILLIS }
+                .map { uname ->
+                    launch {
+                        val lower = uname.lowercase()
+                        val avatar = scraper.fetchTwitchAvatar(uname)
+                        if (avatar != null) {
                             avatarCache[lower] = avatar
+                            avatarCacheTimes[lower] = System.currentTimeMillis()
                         }
                     }
                 }
-            }.joinAll()
+                .joinAll()
         }
         refreshLiveArtists()
         saveAvatarCache()
+        saveAvatarCacheTimes()
     }
 
     private fun refreshLiveArtists() {
@@ -134,29 +143,40 @@ class Repository(
     fun liveStreamUrl(username: String): String = scraper.liveStreamUrl(username)
 
     /**
-     * Refresh Twitch avatars in the background. The decapi.me endpoint is rate-limited
-     * to ~100 req/min; we throttle requests to stay well below that and update artists
-     * as avatars become available.
+     * Refresh Twitch avatars once per day (24h TTL). Artists with a fresh cached avatar
+     * are left untouched; the rest are fetched in parallel (bounded) and the roster is
+     * re-emitted with avatars applied. The TTL caps decapi load: full refresh only runs
+     * every 24h per artist, so repeated launches are near-instant.
      */
-    suspend fun refreshAvatars() {
+    suspend fun refreshAvatars(forceRefresh: Boolean = false) {
         val current = _artists.value
         if (current.isEmpty()) return
-        val updated = current.toMutableList()
-        var changed = false
-        current.forEachIndexed { index, artist ->
-            if (artist.twitchAvatarUrl != null) return@forEachIndexed
-            val avatar = scraper.fetchTwitchAvatar(artist.id)
-            if (avatar != null) {
-                avatarCache[artist.id] = avatar
-                updated[index] = artist.copy(twitchAvatarUrl = avatar)
-                changed = true
-            }
-            // Throttle to ~45 req/min to stay safe across reloads.
-            delay(1_350L)
+        val now = System.currentTimeMillis()
+        val staleness = AVATAR_TTL_MILLIS
+        val stale = current.filter { artist ->
+            forceRefresh || artist.twitchAvatarUrl == null || now - (avatarCacheTimes[artist.id] ?: 0L) >= staleness
         }
-        if (changed) {
-            _artists.value = updated
+        if (stale.isEmpty()) return
+
+        val resolved = coroutineScope {
+            stale.map { artist -> async { artist to runCatching { scraper.fetchTwitchAvatar(artist.id) }.getOrNull() } }
+                .awaitAll()
+                .mapNotNull { (artist, avatar) ->
+                    if (avatar != null) {
+                        avatarCache[artist.id] = avatar
+                        avatarCacheTimes[artist.id] = System.currentTimeMillis()
+                        artist to avatar
+                    } else {
+                        null
+                    }
+                }
+        }
+        if (resolved.isNotEmpty()) {
+            val byId = resolved.toMap()
+            _artists.value = _artists.value.map { byId[it]?.let { av -> it.copy(twitchAvatarUrl = av) } ?: it }
+            refreshLiveArtists()
             saveAvatarCache()
+            saveAvatarCacheTimes()
         }
     }
 
@@ -230,6 +250,28 @@ class Repository(
         }
     }
 
+    private fun loadAvatarCacheTimes(): Map<String, Long> {
+        if (!avatarCacheTimesFile.exists()) return emptyMap()
+        return try {
+            val json = JSONObject(avatarCacheTimesFile.readText())
+            json.keys().asSequence()
+                .associateWith { json.optLong(it) }
+                .filterValues { it > 0L }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun saveAvatarCacheTimes() {
+        try {
+            val json = JSONObject()
+            avatarCacheTimes.forEach { (k, v) -> json.put(k, v) }
+            avatarCacheTimesFile.writeText(json.toString())
+        } catch (_: Exception) {
+            // ignore cache write failures
+        }
+    }
+
     private fun loadDatesCache(): Map<String, Long> {
         if (!datesCacheFile.exists()) return emptyMap()
         return try {
@@ -272,6 +314,8 @@ class Repository(
         raw.replace('_', ' ').trim().replace(Regex("\\s+"), " ")
 
     companion object {
+        /** Twitch avatars refresh at most once per 24h per artist. */
+        const val AVATAR_TTL_MILLIS: Long = 24L * 60L * 60L * 1000L
         private val timestampRe: Pattern = Pattern.compile("(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
     }
 }
