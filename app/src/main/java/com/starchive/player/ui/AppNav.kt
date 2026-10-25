@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -40,6 +41,9 @@ import kotlinx.serialization.Serializable
 data object HomeRoute
 
 @Serializable
+data object LiveRoute
+
+@Serializable
 data object SearchRoute
 
 @Serializable
@@ -53,6 +57,7 @@ data object PlayerRoute
 
 enum class TopLevel(val route: Any, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Browse(HomeRoute, "Browse", Icons.Filled.Home),
+    Live(LiveRoute, "Live now", Icons.Filled.PlayArrow),
     Search(SearchRoute, "Search", Icons.Filled.Search),
     Favorites(FavoritesRoute, "Favorites", Icons.Filled.Favorite),
 }
@@ -188,6 +193,35 @@ fun AppNav(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            }
+
+            composable<LiveRoute> {
+                // Always check the live server when the tab is opened.
+                LaunchedEffect(Unit) { viewModel.loadLive(forceRefresh = true) }
+                LiveNowScreen(
+                    liveArtists = liveArtists,
+                    isRefreshing = false,
+                    onPlay = { artist ->
+                        val liveTrack = Track(
+                            id = "live-${artist.id}",
+                            artistId = artist.id,
+                            artistName = artist.displayName,
+                            title = "${artist.displayName} — LIVE",
+                            url = viewModel.liveStreamUrl(artist.id),
+                            thumbnailUrl = artist.bestImageUrl,
+                            dateMillis = System.currentTimeMillis(),
+                        )
+                        manager.play(listOf(liveTrack), 0)
+                        navController.navigate(PlayerRoute)
+                    },
+                    onOpenTwitch = { artist ->
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://twitch.tv/${artist.id}"))
+                        )
+                    },
+                    onRefresh = { viewModel.loadLive(forceRefresh = true) },
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
 
             composable<SearchRoute> {
