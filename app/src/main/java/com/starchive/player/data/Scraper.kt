@@ -95,24 +95,34 @@ class Scraper(
 
     /**
      * Resolve a Twitch avatar for a username. Returns the direct image URL or null.
-     * Uses decapi.me (public). Rate-limit is 100 req/min, so callers should throttle.
+     * Uses decapi.me (public). Rate-limit is 100 req/min; callers throttle. Retries a
+     * couple of times on transient HTTP failures (incl. rate-limit 429) before giving up.
      */
     suspend fun fetchTwitchAvatar(username: String): String? = withContext(Dispatchers.IO) {
         val url = "https://decapi.me/twitch/avatar/${username.lowercase(Locale.ROOT)}"
-        val req = Request.Builder()
-            .url(url)
-            .header("User-Agent", USER_AGENT)
-            .build()
-        try {
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@withContext null
-                val body = resp.body?.string()?.trim() ?: return@withContext null
-                // decapi returns either an image URL or an error string.
-                if (body.startsWith("http")) body else null
+        repeat(3) { attempt ->
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", USER_AGENT)
+                .build()
+            try {
+                client.newCall(req).execute().use { resp ->
+                    if (resp.code == 429) {
+                        // Rate limited — back off briefly then retry.
+                        Thread.sleep(2_000L)
+                        return@repeat
+                    }
+                    if (!resp.isSuccessful) return@withContext null
+                    val body = resp.body?.string()?.trim() ?: return@withContext null
+                    if (body.startsWith("http")) return@withContext body
+                    return@withContext null
+                }
+            } catch (e: Exception) {
+                if (attempt == 2) return@withContext null
+                Thread.sleep(1_000L)
             }
-        } catch (e: Exception) {
-            null
         }
+        null
     }
 
     /**
