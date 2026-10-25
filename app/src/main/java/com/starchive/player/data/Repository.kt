@@ -26,6 +26,8 @@ class Repository(
     private val searchHistoryDataStore = SearchHistoryDataStore(appContext)
     private val avatarCacheFile = File(appContext.cacheDir, "avatar_cache.json")
     private val avatarCache: MutableMap<String, String> = loadAvatarCache().toMutableMap()
+    private val datesCacheFile = File(appContext.cacheDir, "dates_cache.json")
+    private val datesCache: MutableMap<String, Long> = loadDatesCache().toMutableMap()
 
     private val _artists = MutableStateFlow<List<Artist>>(emptyList())
     val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
@@ -60,6 +62,11 @@ class Repository(
         val fresh = scraper.fetchArtists().withCachedAvatars()
         _artists.value = fresh
         artistsLoaded = true
+        // Seed newest-first ordering from the last persisted dates so Browse is sorted
+        // immediately on launch, before the background refresh completes.
+        if (_latestDateByArtist.value.isEmpty() && datesCache.isNotEmpty()) {
+            _latestDateByArtist.value = datesCache.filterKeys { it in fresh.map { a -> a.id } }
+        }
     }
 
     /**
@@ -74,6 +81,9 @@ class Repository(
                 ?.let { dates[artist.id] = it }
         }
         _latestDateByArtist.value = dates
+        datesCache.clear()
+        datesCache.putAll(dates)
+        saveDatesCache()
         datesLoaded = true
     }
 
@@ -217,6 +227,28 @@ class Repository(
             json.keys().asSequence().associateWith { json.getString(it) }
         } catch (e: Exception) {
             emptyMap()
+        }
+    }
+
+    private fun loadDatesCache(): Map<String, Long> {
+        if (!datesCacheFile.exists()) return emptyMap()
+        return try {
+            val json = JSONObject(datesCacheFile.readText())
+            json.keys().asSequence()
+                .associateWith { json.optLong(it) }
+                .filterValues { it > 0L }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun saveDatesCache() {
+        try {
+            val json = JSONObject()
+            datesCache.forEach { (k, v) -> json.put(k, v) }
+            datesCacheFile.writeText(json.toString())
+        } catch (_: Exception) {
+            // ignore cache write failures
         }
     }
 
