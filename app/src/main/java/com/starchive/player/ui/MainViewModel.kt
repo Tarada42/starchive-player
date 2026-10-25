@@ -34,7 +34,7 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     private val _searchResults = MutableStateFlow<UiState<List<Track>>>(UiState.Success(emptyList()))
     val searchResults: StateFlow<UiState<List<Track>>> = _searchResults.asStateFlow()
 
-    private val _artistSort = MutableStateFlow(ArtistSort.NAME)
+    private val _artistSort = MutableStateFlow(ArtistSort.DATE)
     val artistSort: StateFlow<ArtistSort> = _artistSort.asStateFlow()
 
     private val _favoriteTrackObjects = MutableStateFlow<UiState<List<Track>>>(UiState.Success(emptyList()))
@@ -46,15 +46,11 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
 
     /** Artists exposed with their avatars; loading state derived from emptiness. */
     val artists: StateFlow<UiState<List<Artist>>> = repo.artists
-        .combine(_artistSort) { list, sort ->
+        .combine(_artistSort)
+        .combine(repo.latestDateByArtist) { (list, sort), dates ->
             val sorted = when (sort) {
                 ArtistSort.NAME -> list.sortedBy { it.displayName.lowercase() }
-                ArtistSort.DATE -> {
-                    // We don't have a global last-stream date per artist without fetching
-                    // every artist's track list (expensive), so fall back to id ordering
-                    // until a richer per-artist "last seen" signal is available.
-                    list.sortedByDescending { it.id }
-                }
+                ArtistSort.DATE -> list.sortedByDescending { dates[it.id] ?: 0L }
             }
             when {
                 list.isEmpty() && _artistsLoadError.value != null ->
@@ -71,9 +67,8 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     val favoriteArtists: StateFlow<Set<String>> = repo.favoriteArtists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-    /** DJs that are live right now (Twitch usernames from live.streambox.space). */
-    val liveArtists: StateFlow<List<Artist>> = repo.liveUsernames
-        .combine(repo.artists) { _, _ -> repo.liveArtists() }
+    /** DJs that are live right now (from live.streambox.space), with avatars resolved. */
+    val liveArtists: StateFlow<List<Artist>> = repo.liveArtists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Playable HQ restream URL for a live DJ's Twitch channel. */
@@ -89,6 +84,7 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
                 .onFailure { e -> _artistsLoadError.value = e.message ?: "Could not load artists" }
             launch { repo.refreshAvatars() }
             launch { repo.loadLive() }
+            launch { repo.loadLatestDates() }
         }
     }
 

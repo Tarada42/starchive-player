@@ -31,6 +31,10 @@ class Repository(
     private val _liveUsernames = MutableStateFlow<List<String>>(emptyList())
     val liveUsernames: StateFlow<List<String>> = _liveUsernames.asStateFlow()
 
+    /** Resolved live DJs (with avatars where available). Emits when the roster or avatars change. */
+    private val _liveArtists = MutableStateFlow<List<Artist>>(emptyList())
+    val liveArtists: StateFlow<List<Artist>> = _liveArtists.asStateFlow()
+
     @Volatile
     private var artistsLoaded = false
 
@@ -41,6 +45,13 @@ class Repository(
     private val _allTracksById = MutableStateFlow<Map<String, Track>>(emptyMap())
     val allTracksById: StateFlow<Map<String, Track>> = _allTracksById.asStateFlow()
 
+    /** Most-recent stream date per artist id, used for newest-first sorting. */
+    private val _latestDateByArtist = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val latestDateByArtist: StateFlow<Map<String, Long>> = _latestDateByArtist.asStateFlow()
+
+    @Volatile
+    private var datesLoaded = false
+
     suspend fun loadArtists(forceRefresh: Boolean = false) {
         if (!forceRefresh && artistsLoaded && _artists.value.isNotEmpty()) return
         val fresh = scraper.fetchArtists().withCachedAvatars()
@@ -49,19 +60,57 @@ class Repository(
     }
 
     /**
-     * Fetch which DJs are live right now. Keeps the raw username list; the UI maps
-     * these onto artists (matching by id, which equals the Twitch username).
+     * Fetch the most recent stream date for every artist, so the Browse grid can be
+     * sorted newest-first. Populated lazily once; cheap enough to run in the background.
+     */
+    suspend fun loadLatestDates(forceRefresh: Boolean = false) {
+        if (!forceRefresh && datesLoaded) return
+        val dates = mutableMapOf<String, Long>()
+        _artists.value.forEach { artist ->
+            runCatching { tracks(artist) }.getOrNull()?.maxOfOrNull { it.dateMillis }
+                ?.let { dates[artist.id] = it }
+        }
+        _latestDateByArtist.value = dates
+        datesLoaded = true
+    }
+
+    /**
+     * Fetch which DJs are live right now. Resolves each live username to a DJ entry
+     * (including those without an archive folder) and refreshes their Twitch avatars.
+     * The resolved roster is emitted so the UI updates when avatars arrive.
      */
     suspend fun loadLive(forceRefresh: Boolean = false) {
         if (!forceRefresh && _liveUsernames.value.isNotEmpty()) return
-        _liveUsernames.value = scraper.fetchLiveUsernames()
+        val usernames = scraper.fetchLiveUsernames().ifEmpty { _liveUsernames.value }
+        _liveUsernames.value = usernames
+        // Resolve avatars for live DJs (including ones not in the archive, e.g. glog78).
+        var changed = false
+        usernames.forEach { uname ->
+            val lower = uname.lowercase()
+            if (avatarCache[lower] == null) {
+                val avatar = scraper.fetchTwitchAvatar(uname)
+                if (avatar != null) {
+                    avatarCache[lower] = avatar
+                    changed = true
+                }
+                delay(1_350L)
+            }
+        }
+        refreshLiveArtists()
+        if (changed) saveAvatarCache()
     }
 
-    /** Live DJs that also exist in the artist list, with their current avatar. */
-    fun liveArtists(): List<Artist> {
-        val byName = _artists.value.associateBy { it.id.lowercase() }
-        return _liveUsernames.value
-            .mapNotNull { byName[it.lowercase()] }
+    private fun refreshLiveArtists() {
+        val artistsById = _artists.value.associateBy { it.id.lowercase() }
+        _liveArtists.value = _liveUsernames.value.map { uname ->
+            val lower = uname.lowercase()
+            artistsById[lower] ?: Artist(
+                id = lower,
+                displayName = prettify(uname),
+                thumbnailUrl = null,
+                twitchAvatarUrl = avatarCache[lower],
+            )
+        }
     }
 
     /** Playable HQ restream URL for a live DJ's Twitch channel. */
