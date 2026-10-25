@@ -8,6 +8,8 @@ data class Artist(
     val thumbnailUrl: String?,
     /** Twitch profile image URL, if it could be resolved. */
     val twitchAvatarUrl: String?,
+    /** Last-modified date of the artist folder in the source listing (epoch millis). */
+    val sourceDateMillis: Long = 0L,
 ) {
     /** Best image to show for this artist. */
     val bestImageUrl: String?

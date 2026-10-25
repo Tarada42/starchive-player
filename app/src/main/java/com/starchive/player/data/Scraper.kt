@@ -44,21 +44,24 @@ class Scraper(
     suspend fun fetchArtists(): List<Artist> = withContext(Dispatchers.IO) {
         val doc = getDoc("$baseUrl/")
         val artists = mutableListOf<Artist>()
-        for (a in doc.select("table#list tbody a[href]")) {
-            val href = a.attr("href")
+        val rows = doc.select("table#list tbody tr")
+        for (row in rows) {
+            val link = row.select("a[href]").firstOrNull() ?: continue
+            val href = link.attr("href")
             // artist folders are relative links ending in "/" (skip parent, thumbnails, sort links)
             if (!href.endsWith("/")) continue
             if (href == "../" || href.startsWith("?") || href == "/") continue
             val id = href.removeSuffix("/")
             if (id == "thumbnails" || id.isBlank()) continue
+            // Source date column (e.g. "25-Jun-2026 07:00") — used for newest-first sorting.
+            val dateText = row.select("td").lastOrNull()?.text()?.trim()
             artists.add(
                 Artist(
                     id = id,
                     displayName = prettifyName(id),
-                    // Artist-list thumbnails cannot be derived without a track timestamp,
-                    // but we try to fetch a Twitch avatar instead later.
                     thumbnailUrl = null,
                     twitchAvatarUrl = null,
+                    sourceDateMillis = parseSourceDate(dateText) ?: 0L,
                 )
             )
         }
@@ -166,6 +169,18 @@ class Scraper(
     private fun extractTimestamp(fileName: String): String? {
         val m = timestampRe.matcher(fileName)
         return if (m.find()) m.group(1) else null
+    }
+
+    /** Parse an Apache directory-listing date like "25-Jun-2026 07:00" to epoch millis. */
+    private fun parseSourceDate(text: String?): Long? {
+        if (text.isNullOrBlank()) return null
+        return try {
+            val fmt = java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy HH:mm", Locale.US)
+            java.time.LocalDateTime.parse(text, fmt)
+                .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /** "dj_td" -> "dj td"; "andy gravity" kept as-is. Underscores -> spaces, trimmed. */

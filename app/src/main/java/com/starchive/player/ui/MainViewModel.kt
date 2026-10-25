@@ -51,7 +51,9 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     ) { (list, sort), dates ->
         val sorted = when (sort) {
             ArtistSort.NAME -> list.sortedBy { it.displayName.lowercase() }
-            ArtistSort.DATE -> list.sortedByDescending { dates[it.id] ?: 0L }
+            // Newest-first by the source's own per-artist date (folder last-modified),
+            // falling back to the persisted track-derived date.
+            ArtistSort.DATE -> list.sortedByDescending { a -> a.sourceDateMillis.takeIf { it > 0L } ?: dates[a.id] ?: 0L }
         }
         when {
             list.isEmpty() && _artistsLoadError.value != null ->
