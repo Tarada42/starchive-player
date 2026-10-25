@@ -45,20 +45,21 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     private val _artistsLoadError = MutableStateFlow<String?>(null)
 
     /** Artists exposed with their avatars; loading state derived from emptiness. */
-    val artists: StateFlow<UiState<List<Artist>>> = repo.artists
-        .combine(_artistSort)
-        .combine(repo.latestDateByArtist) { (list, sort), dates ->
-            val sorted = when (sort) {
-                ArtistSort.NAME -> list.sortedBy { it.displayName.lowercase() }
-                ArtistSort.DATE -> list.sortedByDescending { dates[it.id] ?: 0L }
-            }
-            when {
-                list.isEmpty() && _artistsLoadError.value != null ->
-                    UiState.Error(_artistsLoadError.value ?: "Could not load artists")
-                list.isEmpty() -> UiState.Loading
-                else -> UiState.Success(sorted)
-            }
+    val artists: StateFlow<UiState<List<Artist>>> = combine(
+        combine(repo.artists, _artistSort) { list, sort -> list to sort },
+        repo.latestDateByArtist,
+    ) { (list, sort), dates ->
+        val sorted = when (sort) {
+            ArtistSort.NAME -> list.sortedBy { it.displayName.lowercase() }
+            ArtistSort.DATE -> list.sortedByDescending { dates[it.id] ?: 0L }
         }
+        when {
+            list.isEmpty() && _artistsLoadError.value != null ->
+                UiState.Error(_artistsLoadError.value ?: "Could not load artists")
+            list.isEmpty() -> UiState.Loading
+            else -> UiState.Success(sorted)
+        }
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     val favoriteTracks: StateFlow<Set<String>> = repo.favoriteTracks

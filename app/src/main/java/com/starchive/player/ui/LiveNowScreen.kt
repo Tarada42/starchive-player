@@ -59,6 +59,7 @@ private val DAD_JOKES = listOf(
     "What do you call fake spaghetti? An impasta.",
 )
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LiveNowScreen(
     liveArtists: List<Artist>,
@@ -76,7 +77,7 @@ fun LiveNowScreen(
                         Text(
                             "Live now",
                             style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = MaterialTheme.typography.titleLarge.fontWeight ?: androidx.compose.ui.text.font.FontWeight.Bold,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                         )
                         Text(
                             if (liveArtists.isEmpty()) "No one live right now" else "${liveArtists.size} live right now",
