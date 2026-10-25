@@ -121,9 +121,14 @@ fun Track.toMediaItem(): MediaItem {
         .setIsBrowsable(false)
         .setIsPlayable(true)
         .build()
-    return MediaItem.Builder()
+    val builder = MediaItem.Builder()
         .setUri(url)
         .setMediaId(id)
         .setMediaMetadata(metadata)
-        .build()
+    // Live restreams are progressive MP3 with no file extension; set the MIME so
+    // ExoPlayer doesn't have to guess (an indefinite stream stalls format detection).
+    if (id.startsWith("live-")) {
+        builder.setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
+    }
+    return builder.build()
 }
