@@ -141,7 +141,7 @@ class Scraper(
 
     /** Build the playable restream URL for a live DJ's Twitch channel. */
     fun liveStreamUrl(username: String): String =
-        "https://live.streambox.space/${username.lowercase(Locale.ROOT)}_hq.m3u"
+        "https://live.streambox.space/${username.lowercase(Locale.ROOT)}_hq"
 
     // --- helpers ---
 
