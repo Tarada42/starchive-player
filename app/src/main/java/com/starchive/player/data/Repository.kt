@@ -64,6 +64,9 @@ class Repository(
             .mapNotNull { byName[it.lowercase()] }
     }
 
+    /** Playable HQ restream URL for a live DJ's Twitch channel. */
+    fun liveStreamUrl(username: String): String = scraper.liveStreamUrl(username)
+
     /**
      * Refresh Twitch avatars in the background. The decapi.me endpoint is rate-limited
      * to ~100 req/min; we throttle requests to stay well below that and update artists
