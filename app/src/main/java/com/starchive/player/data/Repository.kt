@@ -2,11 +2,14 @@ package com.starchive.player.data
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -77,27 +80,31 @@ class Repository(
     /**
      * Fetch which DJs are live right now. Resolves each live username to a DJ entry
      * (including those without an archive folder) and refreshes their Twitch avatars.
-     * The resolved roster is emitted so the UI updates when avatars arrive.
+     * The roster is emitted immediately with any cached avatars, then avatars for the
+     * live DJs are fetched in parallel and the roster re-emitted as they arrive.
      */
     suspend fun loadLive(forceRefresh: Boolean = false) {
         if (!forceRefresh && _liveUsernames.value.isNotEmpty()) return
         val usernames = scraper.fetchLiveUsernames().ifEmpty { _liveUsernames.value }
         _liveUsernames.value = usernames
-        // Resolve avatars for live DJs (including ones not in the archive, e.g. glog78).
-        var changed = false
-        usernames.forEach { uname ->
-            val lower = uname.lowercase()
-            if (avatarCache[lower] == null) {
-                val avatar = scraper.fetchTwitchAvatar(uname)
-                if (avatar != null) {
-                    avatarCache[lower] = avatar
-                    changed = true
+        refreshLiveArtists()
+
+        // Fetch missing avatars for live DJs in parallel (no artificial delay — the
+        // live roster is small, well under decapi's 100/min rate limit).
+        coroutineScope {
+            usernames.map { uname ->
+                launch {
+                    val lower = uname.lowercase()
+                    if (avatarCache[lower] == null) {
+                        scraper.fetchTwitchAvatar(uname)?.let { avatar ->
+                            avatarCache[lower] = avatar
+                        }
+                    }
                 }
-                delay(1_350L)
-            }
+            }.joinAll()
         }
         refreshLiveArtists()
-        if (changed) saveAvatarCache()
+        saveAvatarCache()
     }
 
     private fun refreshLiveArtists() {
