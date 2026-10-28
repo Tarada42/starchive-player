@@ -1,5 +1,6 @@
 package com.starchive.player.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -38,7 +39,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -74,7 +74,7 @@ fun ArtistDetailScreen(
     // Multi-select download state: long-press a track to enter selection mode, tap to
     // select several, then one "Download" button downloads them all.
     var selectionMode by remember { mutableStateOf(false) }
-    val selected = remember { mutableStateSetOf<String>() }
+    var selected by remember { mutableStateOf(setOf<String>()) }
     val downloadedIds by downloadManager?.downloaded?.collectAsStateWithLifecycle(initialValue = emptySet())
         ?: remember { mutableStateOf(emptySet<String>()) }
     val downloadProgress by downloadManager?.progress?.collectAsStateWithLifecycle(initialValue = emptyMap())
@@ -130,12 +130,12 @@ fun ArtistDetailScreen(
                                     val chosen = tracks.filter { it.id in selected }
                                     if (chosen.isNotEmpty()) onDownloadMany(chosen)
                                     selectionMode = false
-                                    selected.clear()
+                                    selected = emptySet()
                                 },
                         )
                         IconButton(onClick = {
                             selectionMode = false
-                            selected.clear()
+                            selected = emptySet()
                         }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -173,14 +173,14 @@ fun ArtistDetailScreen(
                     downloadProgress = downloadProgress[track.id],
                     onClick = {
                         if (selectionMode) {
-                            if (track.id in selected) selected.remove(track.id) else selected.add(track.id)
+                            selected = if (track.id in selected) selected - track.id else selected + track.id
                         } else {
                             onTrackClick(tracks, index)
                         }
                     },
                     onLongClick = {
                         selectionMode = true
-                        selected.add(track.id)
+                        selected = selected + track.id
                     },
                     onDownload = { downloadManager?.download(track) },
                     onToggleFavorite = { onToggleFavorite(track) },
@@ -250,6 +250,7 @@ private fun ArtistHeader(artist: Artist) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackRow(
     track: Track,

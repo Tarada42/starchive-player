@@ -29,6 +29,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.guava.future
+import kotlinx.coroutines.launch
 
 /**
  * Background playback service (Media3 MediaLibraryService). Provides:
@@ -97,6 +98,13 @@ class PlaybackService : MediaLibraryService() {
         mediaLibrarySession
 
     override fun onDestroy() {
+        // The service is being stopped (e.g. user dismissed the notification's close
+        // action): pause and clear the persisted resume state so the app closes out
+        // to the home screen cleanly. Uses its own scope since serviceScope is about
+        // to be cancelled.
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            runCatching { repository.clearLastPlayback() }
+        }
         serviceScope.cancel()
         mediaLibrarySession?.run {
             player.release()
@@ -186,24 +194,6 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> = serviceScope.future {
             mediaItems.flatMap { resolveForPlayback(it) }
-        }
-
-        /**
-         * The system media notification's close ("×") action arrives here. Fully stop:
-         * pause playback, clear the persisted resume state, and stop the foreground
-         * service so the app closes out to the home screen.
-         */
-        override fun onStop(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-        ): ListenableFuture<MediaSession.SessionResult> = serviceScope.future {
-            player?.run {
-                pause()
-                seekTo(0L)
-            }
-            repository.clearLastPlayback()
-            serviceScope.launch { stopSelf() }
-            MediaSession.SessionResult(MediaSession.SessionResult.RESULT_SUCCESS)
         }
     }
 
