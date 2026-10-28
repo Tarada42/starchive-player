@@ -67,7 +67,7 @@ fun ArtistDetailScreen(
     onToggleFavorite: (Track) -> Unit,
     singleArtistMode: Boolean = false,
     onExitSingleArtist: (() -> Unit)? = null,
-    downloadManager: com.starchive.player.data.DownloadManager? = null,
+    downloadManager: com.starchive.player.data.DownloadManager,
     onDownloadMany: (List<Track>) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -75,10 +75,8 @@ fun ArtistDetailScreen(
     // select several, then one "Download" button downloads them all.
     var selectionMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
-    val downloadedIds by downloadManager?.downloaded?.collectAsStateWithLifecycle(initialValue = emptySet())
-        ?: remember { mutableStateOf(emptySet<String>()) }
-    val downloadProgress by downloadManager?.progress?.collectAsStateWithLifecycle(initialValue = emptyMap())
-        ?: remember { mutableStateOf(emptyMap<String, Float>()) }
+    val downloadedIds by downloadManager.downloaded.collectAsStateWithLifecycle(initialValue = emptySet())
+    val downloadProgress by downloadManager.progress.collectAsStateWithLifecycle(initialValue = emptyMap())
 
     Scaffold(
         topBar = {
@@ -182,7 +180,7 @@ fun ArtistDetailScreen(
                         selectionMode = true
                         selected = selected + track.id
                     },
-                    onDownload = { downloadManager?.download(track) },
+                    onDownload = { downloadManager.download(track) },
                     onToggleFavorite = { onToggleFavorite(track) },
                 )
             }
