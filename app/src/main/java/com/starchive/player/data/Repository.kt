@@ -25,6 +25,7 @@ class Repository(
 
     private val favoritesDataStore = FavoritesDataStore(appContext)
     private val searchHistoryDataStore = SearchHistoryDataStore(appContext)
+    private val playbackStateDataStore = PlaybackStateDataStore(appContext)
     private val avatarCacheFile = File(appContext.cacheDir, "avatar_cache.json")
     private val avatarCache: MutableMap<String, String> = loadAvatarCache().toMutableMap()
     private val avatarCacheTimesFile = File(appContext.cacheDir, "avatar_cache_times.json")
@@ -229,6 +230,20 @@ class Repository(
     val favoriteTracks: Flow<Set<String>> = favoritesDataStore.favoriteTracks
     val favoriteArtists: Flow<Set<String>> = favoritesDataStore.favoriteArtists
     val recentSearches: Flow<List<String>> = searchHistoryDataStore.recentQueries
+
+    // Playback resume state (last track/position, per-artist positions, single-artist mode)
+    val lastTrackId: Flow<String?> = playbackStateDataStore.lastTrackId
+    val lastArtistId: Flow<String?> = playbackStateDataStore.lastArtistId
+    val lastPositionMs: Flow<Long> = playbackStateDataStore.lastPositionMs
+    val singleArtistId: Flow<String?> = playbackStateDataStore.singleArtistId
+    val artistPositions: Flow<Map<String, Pair<String, Long>>> = playbackStateDataStore.artistPositions
+
+    suspend fun saveLastPlayback(track: Track, positionMs: Long) =
+        playbackStateDataStore.saveLast(track.id, track.artistId, positionMs)
+
+    suspend fun clearLastPlayback() = playbackStateDataStore.clearLast()
+
+    suspend fun setSingleArtist(artistId: String?) = playbackStateDataStore.setSingleArtist(artistId)
 
     suspend fun toggleFavoriteTrack(track: Track) = favoritesDataStore.toggleTrack(track)
     suspend fun toggleFavoriteArtist(artist: Artist) = favoritesDataStore.toggleArtist(artist)

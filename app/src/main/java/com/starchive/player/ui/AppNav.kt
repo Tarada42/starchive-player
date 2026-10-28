@@ -92,6 +92,8 @@ fun AppNav(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val artistSort by viewModel.artistSort.collectAsStateWithLifecycle()
+    val sortAscending by viewModel.sortAscending.collectAsStateWithLifecycle()
+    val singleArtistId by viewModel.singleArtistId.collectAsStateWithLifecycle()
     val favoriteTrackIds by viewModel.favoriteTracks.collectAsStateWithLifecycle()
     val favoriteArtistIds by viewModel.favoriteArtists.collectAsStateWithLifecycle()
     val favoriteTrackObjects by viewModel.favoriteTrackObjects.collectAsStateWithLifecycle()
@@ -101,6 +103,33 @@ fun AppNav(
 
     LaunchedEffect(Unit) {
         viewModel.loadArtists()
+    }
+
+    // On launch: resume where the user left off. If Single Artist mode is active, the
+    // front page starts on that artist; otherwise resume the last-played track.
+    val resumeStarted = remember { mutableStateOf(false) }
+    LaunchedEffect(artistsState, singleArtistId) {
+        if (resumeStarted.value) return@LaunchedEffect
+        if (artistsState !is UiState.Success) return@LaunchedEffect
+        resumeStarted.value = true
+        val activeSingle = singleArtistId
+        if (activeSingle != null) {
+            val artist = artistsState.data.find { it.id == activeSingle }
+            if (artist != null) {
+                selectedArtist = artist
+                viewModel.loadTracks(artist)
+                // Resume that artist's last position if one is saved, else just open.
+                viewModel.resumePointForArtist(artist)?.let { pt ->
+                    manager.play(pt.tracks, pt.index, pt.positionMs)
+                    navController.navigate(PlayerRoute)
+                } ?: navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
+            }
+        } else {
+            viewModel.lastResumePoint()?.let { pt ->
+                manager.play(pt.tracks, pt.index, pt.positionMs)
+                navController.navigate(PlayerRoute)
+            }
+        }
     }
 
     val currentBackStack by navController.currentBackStackEntryAsState()
@@ -137,6 +166,8 @@ fun AppNav(
                         artists = s.data,
                         favoriteArtistIds = favoriteArtistIds,
                         sort = artistSort,
+                        sortAscending = sortAscending,
+                        singleArtistId = singleArtistId,
                         isDark = isDark,
                         liveArtists = liveArtists,
                         onSortChange = viewModel::setArtistSort,
@@ -156,11 +187,14 @@ fun AppNav(
                                 thumbnailUrl = artist.bestImageUrl,
                                 dateMillis = System.currentTimeMillis(),
                             )
-                            manager.play(listOf(liveTrack), 0)
+                            manager.playTrack(liveTrack)
                             navController.navigate(PlayerRoute)
                         },
                         onToggleFavorite = { artist ->
                             viewModel.toggleFavoriteArtist(artist)
+                        },
+                        onSetSingleArtist = { artist ->
+                            viewModel.setSingleArtist(artist?.id)
                         },
                         onToggleTheme = onToggleTheme,
                         modifier = Modifier.fillMaxSize(),
@@ -211,7 +245,7 @@ fun AppNav(
                             thumbnailUrl = artist.bestImageUrl,
                             dateMillis = System.currentTimeMillis(),
                         )
-                        manager.play(listOf(liveTrack), 0)
+                        manager.playTrack(liveTrack)
                         navController.navigate(PlayerRoute)
                     },
                     onOpenTwitch = { artist ->
@@ -235,7 +269,7 @@ fun AppNav(
                     onClearHistory = { viewModel.clearSearchHistory() },
                     onTrackClick = { track ->
                         viewModel.recordSearch(searchQuery)
-                        manager.play(listOf(track), 0)
+                        manager.playTrack(track)
                         navController.navigate(PlayerRoute)
                     },
                     onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
@@ -252,10 +286,15 @@ fun AppNav(
                     onArtistClick = { artist ->
                         selectedArtist = artist
                         viewModel.loadTracks(artist)
-                        navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
+                        // Favourite DJ resume: start where the player stopped last for
+                        // this artist (last track + position), if one is saved.
+                        viewModel.resumePointForArtist(artist)?.let { pt ->
+                            manager.play(pt.tracks, pt.index, pt.positionMs)
+                            navController.navigate(PlayerRoute)
+                        } ?: navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
                     },
                     onTrackClick = { track ->
-                        manager.play(listOf(track), 0)
+                        manager.playTrack(track)
                         navController.navigate(PlayerRoute)
                     },
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) },

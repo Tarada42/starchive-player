@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -58,12 +60,15 @@ fun ArtistListScreen(
     artists: List<Artist>,
     favoriteArtistIds: Set<String>,
     sort: ArtistSort,
+    sortAscending: Boolean,
+    singleArtistId: String?,
     isDark: Boolean,
     liveArtists: List<Artist> = emptyList(),
     onSortChange: (ArtistSort) -> Unit,
     onArtistClick: (Artist) -> Unit,
     onLiveClick: (Artist) -> Unit = {},
     onToggleFavorite: (Artist) -> Unit,
+    onSetSingleArtist: (Artist?) -> Unit,
     onToggleTheme: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -116,16 +121,65 @@ fun ArtistListScreen(
                 FilterChip(
                     selected = sort == ArtistSort.NAME,
                     onClick = { onSortChange(ArtistSort.NAME) },
-                    label = { Text("Name") },
+                    label = {
+                        Text(
+                            if (sort == ArtistSort.NAME)
+                                if (sortAscending) "Name ▲" else "Name ▼"
+                            else "Name"
+                        )
+                    },
                 )
                 FilterChip(
                     selected = sort == ArtistSort.DATE,
                     onClick = { onSortChange(ArtistSort.DATE) },
-                    label = { Text("Date") },
+                    label = {
+                        Text(
+                            if (sort == ArtistSort.DATE)
+                                if (sortAscending) "Date ▲" else "Date ▼"
+                            else "Date"
+                        )
+                    },
                 )
             }
             if (liveArtists.isNotEmpty()) {
                 LiveNowSection(artists = liveArtists, onLiveClick = onLiveClick)
+            }
+            // Banner when the app is pinned to a single artist: explains the front page
+            // shows only this DJ and how to get back to all artists.
+            singleArtistId?.let { pinned ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        text = "Single Artist: starting on this DJ. Tap “Show all” to exit.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "Show all",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .clickable { onSetSingleArtist(null) },
+                    )
+                }
             }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -138,8 +192,10 @@ fun ArtistListScreen(
                     ArtistCard(
                         artist = artist,
                         isFavorite = favoriteArtistIds.contains(artist.id),
+                        isPinned = artist.id == singleArtistId,
                         onClick = { onArtistClick(artist) },
                         onToggleFavorite = { onToggleFavorite(artist) },
+                        onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist.id) },
                     )
                 }
             }
@@ -151,8 +207,10 @@ fun ArtistListScreen(
 private fun ArtistCard(
     artist: Artist,
     isFavorite: Boolean,
+    isPinned: Boolean = false,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onSetSingle: () -> Unit = {},
 ) {
     Card(
         modifier = Modifier
@@ -216,6 +274,15 @@ private fun ArtistCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                // Pin = "Start app showing only this Artist" (Single Artist mode).
+                IconButton(onClick = onSetSingle) {
+                    Icon(
+                        imageVector = Icons.Filled.PushPin,
+                        contentDescription = if (isPinned) "Forlad single-artist" else "Start app på kun denne DJ",
+                        tint = if (isPinned) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 IconButton(onClick = onToggleFavorite) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,

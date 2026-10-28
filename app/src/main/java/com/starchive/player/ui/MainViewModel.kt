@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -37,6 +38,10 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     private val _artistSort = MutableStateFlow(ArtistSort.DATE)
     val artistSort: StateFlow<ArtistSort> = _artistSort.asStateFlow()
 
+    /** Ascending vs descending for the current sort; clicking the active chip toggles it. */
+    private val _sortAscending = MutableStateFlow(false)
+    val sortAscending: StateFlow<Boolean> = _sortAscending.asStateFlow()
+
     private val _favoriteTrackObjects = MutableStateFlow<UiState<List<Track>>>(UiState.Success(emptyList()))
     val favoriteTrackObjects: StateFlow<UiState<List<Track>>> = _favoriteTrackObjects.asStateFlow()
 
@@ -46,14 +51,18 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
 
     /** Artists exposed with their avatars; loading state derived from emptiness. */
     val artists: StateFlow<UiState<List<Artist>>> = combine(
-        combine(repo.artists, _artistSort) { list, sort -> list to sort },
+        combine(repo.artists, _artistSort, _sortAscending) { list, sort, asc -> Triple(list, sort, asc) },
         repo.latestDateByArtist,
-    ) { (list, sort), dates ->
+    ) { (list, sort, asc), dates ->
         val sorted = when (sort) {
-            ArtistSort.NAME -> list.sortedBy { it.displayName.lowercase() }
-            // Newest-first by the source's own per-artist date (folder last-modified),
-            // falling back to the persisted track-derived date.
-            ArtistSort.DATE -> list.sortedByDescending { a -> a.sourceDateMillis.takeIf { it > 0L } ?: dates[a.id] ?: 0L }
+            ArtistSort.NAME -> if (asc) list.sortedBy { it.displayName.lowercase() }
+                else list.sortedByDescending { it.displayName.lowercase() }
+            // By the source's own per-artist date (folder last-modified), falling back
+            // to the persisted track-derived date. Default (asc=false) = newest first.
+            ArtistSort.DATE -> {
+                val keyed = list.sortedByDescending { a -> a.sourceDateMillis.takeIf { it > 0L } ?: dates[a.id] ?: 0L }
+                if (asc) keyed.reversed() else keyed
+            }
         }
         when {
             list.isEmpty() && _artistsLoadError.value != null ->
@@ -77,6 +86,44 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     /** Playable HQ restream URL for a live DJ's Twitch channel. */
     fun liveStreamUrl(username: String): String = repo.liveStreamUrl(username)
 
+    /** Last-played track/position + per-artist resume points + single-artist mode. */
+    val lastTrackId: StateFlow<String?> = repo.lastTrackId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val lastPositionMs: StateFlow<Long> = repo.lastPositionMs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+    val singleArtistId: StateFlow<String?> = repo.singleArtistId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val artistPositions: StateFlow<Map<String, Pair<String, Long>>> = repo.artistPositions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    fun setSingleArtist(artistId: String?) {
+        viewModelScope.launch { repo.setSingleArtist(artistId) }
+    }
+
+    /** A playable resume point. */
+    data class ResumePoint(val artist: Artist, val tracks: List<Track>, val index: Int, val positionMs: Long)
+
+    /** Resolve the last-played track into a full resume point for launch, or null if none. */
+    suspend fun lastResumePoint(): ResumePoint? {
+        val trackId = repo.lastTrackId.first() ?: return null
+        val pos = repo.lastPositionMs.first()
+        val track = runCatching { repo.trackById(trackId) }.getOrNull() ?: return null
+        val artist = repo.artists.value.find { it.id == track.artistId }
+            ?: Artist(track.artistId, track.artistName, null, null)
+        val tracks = runCatching { repo.tracks(artist) }.getOrElse { return null }
+        val index = tracks.indexOfFirst { it.id == trackId }.takeIf { it >= 0 } ?: 0
+        return ResumePoint(artist, tracks, index, pos)
+    }
+
+    /** Resolve the saved resume point for a single artist (favourite-DJ resume), or null. */
+    suspend fun resumePointForArtist(artist: Artist): ResumePoint? {
+        val saved = repo.artistPositions.first()[artist.id] ?: return null
+        val tracks = runCatching { repo.tracks(artist) }.getOrElse { return null }
+        val index = tracks.indexOfFirst { it.id == saved.first }
+        if (index < 0) return null
+        return ResumePoint(artist, tracks, index, saved.second)
+    }
+
     val recentSearches: StateFlow<List<String>> = repo.recentSearches
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -96,7 +143,14 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     }
 
     fun setArtistSort(sort: ArtistSort) {
-        _artistSort.value = sort
+        // Clicking the already-active sort reverses its direction; switching sort
+        // picks a sensible default direction (NAME asc, DATE newest-first).
+        if (sort == _artistSort.value) {
+            _sortAscending.value = !_sortAscending.value
+        } else {
+            _artistSort.value = sort
+            _sortAscending.value = sort == ArtistSort.NAME
+        }
     }
 
     fun loadTracks(artist: Artist) {

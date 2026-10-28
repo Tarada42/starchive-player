@@ -65,6 +65,10 @@ class PlaybackService : MediaLibraryService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
+        // Android Auto's rewind/fast-forward buttons (and continuous seek while held)
+        // step by these increments, so the user can jump through a long set in 30 s.
+        exoPlayer.setSeekBackIncrementMs(30_000L)
+        exoPlayer.setSeekForwardIncrementMs(30_000L)
         player = exoPlayer
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
@@ -216,7 +220,7 @@ class PlaybackService : MediaLibraryService() {
         )
         ARTISTS_ID -> {
             repository.loadArtists()
-            repository.artists.value.sortedBy { it.displayName.lowercase() }
+            repository.artists.value.sortedByDescending { it.sourceDateMillis }
                 .map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
         FAVORITES_ID -> listOf(
