@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
 @UnstableApi
 class PlaybackService : MediaLibraryService() {
 
-    private var player: ExoPlayer? = null
+    private var player: Player? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val repository: Repository by lazy { (application as StArchiveApp).repository }
