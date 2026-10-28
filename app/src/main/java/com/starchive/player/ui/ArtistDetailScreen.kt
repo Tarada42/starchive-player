@@ -69,6 +69,8 @@ fun ArtistDetailScreen(
     onExitSingleArtist: (() -> Unit)? = null,
     downloadManager: com.starchive.player.data.DownloadManager,
     onDownloadMany: (List<Track>) -> Unit = {},
+    resumeTitle: String? = null,
+    onResume: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     // Multi-select download state: long-press a track to enter selection mode, tap to
@@ -158,6 +160,49 @@ fun ArtistDetailScreen(
         ) {
             item {
                 ArtistHeader(artist = artist)
+            }
+            if (resumeTitle != null && onResume != null) {
+                item {
+                    // Explicit "resume last position" — only plays when the user taps.
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onResume),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        ),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.size(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Continue",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Text(
+                                    text = resumeTitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
                 TrackRow(

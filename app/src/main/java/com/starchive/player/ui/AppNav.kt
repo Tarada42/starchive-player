@@ -267,6 +267,14 @@ fun AppNav(
                 }
                 LaunchedEffect(artist) { selectedArtist = artist }
 
+                // Discover (but don't auto-play) this artist's saved resume point.
+                var resumePoint by remember(route.artistId) {
+                    mutableStateOf<MainViewModel.ResumePoint?>(null)
+                }
+                LaunchedEffect(route.artistId) {
+                    resumePoint = viewModel.resumePointForArtist(artist)
+                }
+
                 when (val s = tracksState) {
                     is UiState.Loading -> Loading(Modifier.fillMaxSize())
                     is UiState.Error -> Error(s.message, Modifier.fillMaxSize())
@@ -284,6 +292,13 @@ fun AppNav(
                         onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
                         downloadManager = downloadManager,
                         onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
+                        resumeTitle = resumePoint?.tracks?.getOrNull(resumePoint.index)?.title,
+                        onResume = {
+                            resumePoint?.let { pt ->
+                                manager.play(pt.tracks, pt.index, pt.positionMs)
+                                navController.navigate(PlayerRoute)
+                            }
+                        },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -346,17 +361,9 @@ fun AppNav(
                     onArtistClick = { artist ->
                         selectedArtist = artist
                         viewModel.loadTracks(artist)
-                        // Favourite DJ resume: start where the player stopped last for
-                        // this artist (last track + position), if one is saved.
-                        uiScope.launch {
-                            val pt = viewModel.resumePointForArtist(artist)
-                            if (pt != null) {
-                                manager.play(pt.tracks, pt.index, pt.positionMs)
-                                navController.navigate(PlayerRoute)
-                            } else {
-                                navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
-                            }
-                        }
+                        // Open the artist's detail page WITHOUT auto-resuming playback —
+                        // resume is offered as an explicit button there and only plays on tap.
+                        navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
                     },
                     onTrackClick = { track ->
                         manager.playTrack(track)
