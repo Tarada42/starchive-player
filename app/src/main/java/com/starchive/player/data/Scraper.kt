@@ -45,7 +45,8 @@ class Scraper(
         val arr = getJsonArray("$baseUrl/api/artists")
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            val id = o.optString("id").ifBlank { continue }
+            val id = o.optString("id")
+            if (id.isBlank()) continue
             artists.add(
                 Artist(
                     id = id,
