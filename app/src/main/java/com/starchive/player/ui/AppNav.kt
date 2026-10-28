@@ -31,6 +31,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.starchive.player.MainActivity
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Track
 import com.starchive.player.playback.PlaybackManager
@@ -116,19 +117,26 @@ fun AppNav(
         if (resumeStarted.value) return@LaunchedEffect
         val success = launchArtists as? UiState.Success ?: return@LaunchedEffect
         resumeStarted.value = true
+        // Opened by tapping the media notification body: go straight to the player for
+        // the now-playing track (playback is already running in the background).
+        val activity = context as? MainActivity
+        val fromNotification = activity?.intent?.getBooleanExtra(MainActivity.EXTRA_OPEN_PLAYER, false) == true
+        if (fromNotification && current != null) {
+            navController.navigate(PlayerRoute)
+            return@LaunchedEffect
+        }
         val activeSingle = singleArtistId
         if (activeSingle != null) {
             val artist = success.data.find { it.id == activeSingle }
             if (artist != null) {
                 selectedArtist = artist
                 viewModel.loadTracks(artist)
-                // Resume that artist's last position if one is saved, else just open.
+                // Resume that artist's last position if one is saved. The front page
+                // itself (HomeRoute) already shows only this artist's tracks.
                 val pt = viewModel.resumePointForArtist(artist)
                 if (pt != null) {
                     manager.play(pt.tracks, pt.index, pt.positionMs)
                     navController.navigate(PlayerRoute)
-                } else {
-                    navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
                 }
             }
         } else {
@@ -170,7 +178,33 @@ fun AppNav(
                 when (val s = artistsState) {
                     is UiState.Loading -> Loading(Modifier.fillMaxSize())
                     is UiState.Error -> Error(s.message, Modifier.fillMaxSize())
-                    is UiState.Success -> ArtistListScreen(
+                    is UiState.Success -> {
+                        // Single Artist mode: the front page IS the pinned artist's full
+                        // track list — no artist grid, no picker. Exit via the top-bar back.
+                        val pinned = singleArtistId?.let { id -> s.data.find { it.id == id } }
+                        if (pinned != null) {
+                            LaunchedEffect(pinned.id) { viewModel.loadTracks(pinned) }
+                            when (val t = tracksState) {
+                                is UiState.Loading -> Loading(Modifier.fillMaxSize())
+                                is UiState.Error -> Error(t.message, Modifier.fillMaxSize())
+                                is UiState.Success -> ArtistDetailScreen(
+                                    artist = pinned,
+                                    tracks = t.data,
+                                    favorites = favoriteTrackIds,
+                                    currentTrackId = current?.id,
+                                    isPlaying = isPlaying,
+                                    onBack = { viewModel.setSingleArtist(null) },
+                                    onTrackClick = { tracks, index ->
+                                        manager.play(tracks, index)
+                                        navController.navigate(PlayerRoute)
+                                    },
+                                    onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
+                                    singleArtistMode = true,
+                                    onExitSingleArtist = { viewModel.setSingleArtist(null) },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        } else ArtistListScreen(
                         artists = s.data,
                         favoriteArtistIds = favoriteArtistIds,
                         sort = artistSort,
@@ -206,7 +240,8 @@ fun AppNav(
                         },
                         onToggleTheme = onToggleTheme,
                         modifier = Modifier.fillMaxSize(),
-                    )
+                        )
+                    }
                 }
             }
 

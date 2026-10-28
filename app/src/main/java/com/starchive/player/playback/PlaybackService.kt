@@ -76,12 +76,14 @@ class PlaybackService : MediaLibraryService() {
         player = exoPlayer
 
         // Tapping the notification body (anywhere except the action buttons) opens and
-        // focuses the app. The transport buttons themselves stay handled by Media3.
+        // focuses the app, directly on the Player screen for the now-playing track.
+        // The transport buttons themselves stay handled by Media3.
         val openAppIntent = PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra(MainActivity.EXTRA_OPEN_PLAYER, true)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -184,6 +186,24 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> = serviceScope.future {
             mediaItems.flatMap { resolveForPlayback(it) }
+        }
+
+        /**
+         * The system media notification's close ("×") action arrives here. Fully stop:
+         * pause playback, clear the persisted resume state, and stop the foreground
+         * service so the app closes out to the home screen.
+         */
+        override fun onStop(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.SessionResult> = serviceScope.future {
+            player?.run {
+                pause()
+                seekTo(0L)
+            }
+            repository.clearLastPlayback()
+            serviceScope.launch { stopSelf() }
+            MediaSession.SessionResult(MediaSession.SessionResult.RESULT_SUCCESS)
         }
     }
 

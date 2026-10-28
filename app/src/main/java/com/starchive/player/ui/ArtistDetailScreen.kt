@@ -56,6 +56,8 @@ fun ArtistDetailScreen(
     onBack: () -> Unit,
     onTrackClick: (List<Track>, Int) -> Unit,
     onToggleFavorite: (Track) -> Unit,
+    singleArtistMode: Boolean = false,
+    onExitSingleArtist: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -63,10 +65,30 @@ fun ArtistDetailScreen(
             TopAppBar(
                 title = { Text(artist.displayName) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Tilbage",
+                    if (singleArtistMode) {
+                        // Exit Single Artist mode: back to the all-artists front page.
+                        IconButton(onClick = { onExitSingleArtist?.invoke() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Forlad Single Artist",
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Tilbage",
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    if (singleArtistMode) {
+                        Text(
+                            text = "Single Artist",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 16.dp),
                         )
                     }
                 },

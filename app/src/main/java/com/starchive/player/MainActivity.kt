@@ -18,6 +18,11 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    /** Intent extra: opened by tapping the media notification body — route to Player. */
+    companion object {
+        const val EXTRA_OPEN_PLAYER = "com.starchive.player.OPEN_PLAYER"
+    }
+
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or not — nothing to do */ }
 
