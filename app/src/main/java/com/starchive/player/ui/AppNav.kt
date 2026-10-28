@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -35,6 +36,7 @@ import com.starchive.player.data.Track
 import com.starchive.player.playback.PlaybackManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -78,6 +80,7 @@ fun AppNav(
     navController: NavHostController = rememberNavController(),
 ) {
     val context = LocalContext.current
+    val uiScope = rememberCoroutineScope()
     val manager = remember {
         PlaybackManager(context, CoroutineScope(Dispatchers.Main)).apply { connect() }
     }
@@ -108,24 +111,29 @@ fun AppNav(
     // On launch: resume where the user left off. If Single Artist mode is active, the
     // front page starts on that artist; otherwise resume the last-played track.
     val resumeStarted = remember { mutableStateOf(false) }
-    LaunchedEffect(artistsState, singleArtistId) {
+    val launchArtists = artistsState
+    LaunchedEffect(launchArtists, singleArtistId) {
         if (resumeStarted.value) return@LaunchedEffect
-        if (artistsState !is UiState.Success) return@LaunchedEffect
+        val success = launchArtists as? UiState.Success ?: return@LaunchedEffect
         resumeStarted.value = true
         val activeSingle = singleArtistId
         if (activeSingle != null) {
-            val artist = artistsState.data.find { it.id == activeSingle }
+            val artist = success.data.find { it.id == activeSingle }
             if (artist != null) {
                 selectedArtist = artist
                 viewModel.loadTracks(artist)
                 // Resume that artist's last position if one is saved, else just open.
-                viewModel.resumePointForArtist(artist)?.let { pt ->
+                val pt = viewModel.resumePointForArtist(artist)
+                if (pt != null) {
                     manager.play(pt.tracks, pt.index, pt.positionMs)
                     navController.navigate(PlayerRoute)
-                } ?: navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
+                } else {
+                    navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
+                }
             }
         } else {
-            viewModel.lastResumePoint()?.let { pt ->
+            val pt = viewModel.lastResumePoint()
+            if (pt != null) {
                 manager.play(pt.tracks, pt.index, pt.positionMs)
                 navController.navigate(PlayerRoute)
             }
@@ -288,10 +296,15 @@ fun AppNav(
                         viewModel.loadTracks(artist)
                         // Favourite DJ resume: start where the player stopped last for
                         // this artist (last track + position), if one is saved.
-                        viewModel.resumePointForArtist(artist)?.let { pt ->
-                            manager.play(pt.tracks, pt.index, pt.positionMs)
-                            navController.navigate(PlayerRoute)
-                        } ?: navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
+                        uiScope.launch {
+                            val pt = viewModel.resumePointForArtist(artist)
+                            if (pt != null) {
+                                manager.play(pt.tracks, pt.index, pt.positionMs)
+                                navController.navigate(PlayerRoute)
+                            } else {
+                                navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
+                            }
+                        }
                     },
                     onTrackClick = { track ->
                         manager.playTrack(track)

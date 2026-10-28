@@ -212,7 +212,7 @@ fun ArtistListScreen(
                         isPinned = artist.id == singleArtistId,
                         onClick = { onArtistClick(artist) },
                         onToggleFavorite = { onToggleFavorite(artist) },
-                        onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist.id) },
+                        onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist) },
                     )
                 }
             }

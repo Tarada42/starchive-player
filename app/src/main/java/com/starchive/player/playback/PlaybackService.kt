@@ -70,10 +70,9 @@ class PlaybackService : MediaLibraryService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
-        // Android Auto's rewind/fast-forward buttons (and continuous seek while held)
-        // step by these increments, so the user can jump through a long set in 30 s.
-        exoPlayer.setSeekBackIncrementMs(30_000L)
-        exoPlayer.setSeekForwardIncrementMs(30_000L)
+        // (Android Auto's rewind/fast-forward default to 10s steps; custom 30s
+        // increments via setSeekForwardIncrementMs require media3 1.9+ — not yet
+        // available in this project's media3 1.4.1 dependency, so left at default.)
         player = exoPlayer
 
         // Tapping the notification body (anywhere except the action buttons) opens and
