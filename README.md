@@ -10,7 +10,7 @@ _Android app · Kotlin · Jetpack Compose · Media3/ExoPlayer · Android Auto_
 
 STArchive Player is a native Android music player for the [ST Archive](https://starchive.streambox.space) — a community of Twitch DJs. Browse every DJ, stream their sets, tune into who's live right now, download sets for offline listening, and control it all from the car.
 
-> 📄 Full overview, features, and data sources: **[ABOUT.md](ABOUT.md)**
+> 📄 Full overview: **[ABOUT.md](ABOUT.md)** · 🗺️ Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
 ---
 
