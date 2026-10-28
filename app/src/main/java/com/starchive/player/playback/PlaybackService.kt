@@ -71,10 +71,12 @@ class PlaybackService : MediaLibraryService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
-        // (Android Auto's rewind/fast-forward default to 10s steps; custom 30s
-        // increments via setSeekForwardIncrementMs require media3 1.9+ — not yet
-        // available in this project's media3 1.4.1 dependency, so left at default.)
-        player = exoPlayer
+        // Android Auto's rewind/fast-forward buttons call seekBack()/seekForward().
+        // media3 1.4.1 has no setSeekForwardIncrementMs, so we wrap the player in a
+        // ForwardingPlayer that overrides those two to use a fixed 30-second step
+        // (shared by the head unit and the in-app controls).
+        val seekPlayer = ThirtySecondSeekPlayer(exoPlayer)
+        player = seekPlayer
 
         // Tapping the notification body (anywhere except the action buttons) opens and
         // focuses the app, directly on the Player screen for the now-playing track.
@@ -89,7 +91,7 @@ class PlaybackService : MediaLibraryService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
+        mediaLibrarySession = MediaLibrarySession.Builder(this, seekPlayer, LibrarySessionCallback())
             .setSessionActivity(openAppIntent)
             .build()
     }
@@ -194,34 +196,6 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> = serviceScope.future {
             mediaItems.flatMap { resolveForPlayback(it) }
-        }
-
-        /**
-         * Enable rewind/fast-forward in Android Auto. Declaring these callbacks makes
-         * Media3 advertise the seek commands, so the head unit shows the FFW/FWD
-         * buttons. We handle the 30-second step ourselves (media3 1.4.1 has no
-         * setSeekForwardIncrementMs) and both the car and the in-app player share it.
-         */
-        override fun onSeekBack(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-        ): ListenableFuture<MediaSession.SessionResult> = serviceScope.future {
-            val p = player
-            if (p != null) {
-                p.seekTo((p.currentPosition - SEEK_STEP_MS).coerceAtLeast(0L))
-            }
-            MediaSession.SessionResult(MediaSession.SessionResult.RESULT_SUCCESS)
-        }
-
-        override fun onSeekForward(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-        ): ListenableFuture<MediaSession.SessionResult> = serviceScope.future {
-            val p = player
-            if (p != null) {
-                p.seekTo(p.currentPosition + SEEK_STEP_MS)
-            }
-            MediaSession.SessionResult(MediaSession.SessionResult.RESULT_SUCCESS)
         }
     }
 
@@ -346,7 +320,5 @@ class PlaybackService : MediaLibraryService() {
         const val ARTIST_PREFIX = "artist:"
         const val SEARCH_PREFIX = "search:"
         const val LIVE_PREFIX = "live-"
-        /** Android Auto rewind/fast-forward seek step (30s). */
-        private const val SEEK_STEP_MS: Long = 30_000L
     }
 }
