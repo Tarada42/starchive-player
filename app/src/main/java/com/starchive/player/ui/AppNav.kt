@@ -130,8 +130,12 @@ fun AppNav(
         }
     }
 
-    // On launch: resume where the user left off. If Single Artist mode is active, the
-    // front page starts on that artist; otherwise resume the last-played track.
+    // On launch: if Single Artist mode is active, the front page starts on that
+    // artist — the HomeRoute already renders only that artist's tracks. We must NOT
+    // auto-play/resume anything here (entering this mode or launching in it must only
+    // OPEN the artist, never start, pause, or replace what's playing). Resume is
+    // available through the explicit "Continue" button on the artist screen.
+    // The non-single path still resumes the last-played track on a normal cold start.
     val resumeStarted = remember { mutableStateOf(false) }
     val launchArtists = artistsState
     LaunchedEffect(launchArtists, singleArtistId) {
@@ -144,13 +148,8 @@ fun AppNav(
             if (artist != null) {
                 selectedArtist = artist
                 viewModel.loadTracks(artist)
-                // Resume that artist's last position if one is saved. The front page
-                // itself (HomeRoute) already shows only this artist's tracks.
-                val pt = viewModel.resumePointForArtist(artist)
-                if (pt != null) {
-                    manager.play(pt.tracks, pt.index, pt.positionMs)
-                    navController.navigate(PlayerRoute)
-                }
+                // No auto-play: the artist's tracks are shown by HomeRoute; resume is
+                // only triggered by the explicit "Continue" button.
             }
         } else {
             val pt = viewModel.lastResumePoint()
@@ -200,7 +199,13 @@ fun AppNav(
                             when (val t = tracksState) {
                                 is UiState.Loading -> Loading(Modifier.fillMaxSize())
                                 is UiState.Error -> Error(t.message, Modifier.fillMaxSize())
-                                is UiState.Success -> ArtistDetailScreen(
+                                is UiState.Success -> {
+                                // Offer explicit resume (option B) but never auto-play.
+                                var singleRpState by remember(pinned.id) { mutableStateOf<MainViewModel.ResumePoint?>(null) }
+                                LaunchedEffect(pinned.id) {
+                                    singleRpState = viewModel.resumePointForArtist(pinned)
+                                }
+                                ArtistDetailScreen(
                                     artist = pinned,
                                     tracks = t.data,
                                     favorites = favoriteTrackIds,
@@ -216,8 +221,17 @@ fun AppNav(
                                     onExitSingleArtist = { viewModel.setSingleArtist(null) },
                                     downloadManager = downloadManager,
                                     onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
+                                    resumeTitle = singleRpState?.tracks?.getOrNull(singleRpState.index)?.title,
+                                    onResume = {
+                                        val rp = singleRpState
+                                        if (rp != null) {
+                                            manager.play(rp.tracks, rp.index, rp.positionMs)
+                                            navController.navigate(PlayerRoute)
+                                        }
+                                    },
                                     modifier = Modifier.fillMaxSize(),
                                 )
+                            }
                             }
                         } else ArtistListScreen(
                         artists = s.data,
