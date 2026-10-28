@@ -117,6 +117,19 @@ fun AppNav(
         viewModel.loadArtists()
     }
 
+    // Notification tap → now-playing track. React to EVERY open-player request
+    // (cold start via onCreate, or app already alive via onNewIntent — both increment
+    // MainActivity.openPlayerRequests). Navigate only when a track is actually active;
+    // never restart or seek playback.
+    val mainActivity = context as? MainActivity
+    val openPlayerRequests by mainActivity?.openPlayerRequests
+        ?.collectAsStateWithLifecycle(initialValue = 0) ?: remember { mutableStateOf(0) }
+    LaunchedEffect(openPlayerRequests) {
+        if (openPlayerRequests > 0 && current != null) {
+            navController.navigate(PlayerRoute)
+        }
+    }
+
     // On launch: resume where the user left off. If Single Artist mode is active, the
     // front page starts on that artist; otherwise resume the last-played track.
     val resumeStarted = remember { mutableStateOf(false) }
@@ -125,14 +138,6 @@ fun AppNav(
         if (resumeStarted.value) return@LaunchedEffect
         val success = launchArtists as? UiState.Success ?: return@LaunchedEffect
         resumeStarted.value = true
-        // Opened by tapping the media notification body: go straight to the player for
-        // the now-playing track (playback is already running in the background).
-        val activity = context as? MainActivity
-        val fromNotification = activity?.intent?.getBooleanExtra(MainActivity.EXTRA_OPEN_PLAYER, false) == true
-        if (fromNotification && current != null) {
-            navController.navigate(PlayerRoute)
-            return@LaunchedEffect
-        }
         val activeSingle = singleArtistId
         if (activeSingle != null) {
             val artist = success.data.find { it.id == activeSingle }
