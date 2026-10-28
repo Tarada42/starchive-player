@@ -75,7 +75,7 @@ fun ArtistDetailScreen(
     // select several, then one "Download" button downloads them all.
     var selectionMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
-    val downloadedIds by downloadManager.downloaded.collectAsStateWithLifecycle(initialValue = emptySet())
+    val downloadedIds by downloadManager.downloaded.collectAsStateWithLifecycle(initialValue = emptyMap())
     val downloadProgress by downloadManager.progress.collectAsStateWithLifecycle(initialValue = emptyMap())
 
     Scaffold(
@@ -167,7 +167,7 @@ fun ArtistDetailScreen(
                     isPlaying = isPlaying,
                     isSelected = track.id in selected,
                     selectionMode = selectionMode,
-                    isDownloaded = track.id in downloadedIds,
+                    isDownloaded = track.id in downloadedIds.keys,
                     downloadProgress = downloadProgress[track.id],
                     onClick = {
                         if (selectionMode) {
