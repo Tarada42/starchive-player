@@ -88,8 +88,8 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     fun next() = controller?.seekToNextMediaItem()
     fun previous() = controller?.seekToPreviousMediaItem()
 
-    fun skipForward(millis: Long = 10_000L) = controller?.seekTo(controller?.currentPosition?.plus(millis) ?: 0L)
-    fun skipBackward(millis: Long = 10_000L) = controller?.seekTo((controller?.currentPosition?.minus(millis) ?: 0L).coerceAtLeast(0L))
+    fun skipForward(millis: Long = 30_000L) = controller?.seekTo(controller?.currentPosition?.plus(millis) ?: 0L)
+    fun skipBackward(millis: Long = 30_000L) = controller?.seekTo((controller?.currentPosition?.minus(millis) ?: 0L).coerceAtLeast(0L))
 
     fun seekTo(ms: Long) = controller?.seekTo(ms)
 

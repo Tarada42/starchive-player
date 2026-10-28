@@ -195,6 +195,34 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<List<MediaItem>> = serviceScope.future {
             mediaItems.flatMap { resolveForPlayback(it) }
         }
+
+        /**
+         * Enable rewind/fast-forward in Android Auto. Declaring these callbacks makes
+         * Media3 advertise the seek commands, so the head unit shows the FFW/FWD
+         * buttons. We handle the 30-second step ourselves (media3 1.4.1 has no
+         * setSeekForwardIncrementMs) and both the car and the in-app player share it.
+         */
+        override fun onSeekBack(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.SessionResult> = serviceScope.future {
+            val p = player
+            if (p != null) {
+                p.seekTo((p.currentPosition - SEEK_STEP_MS).coerceAtLeast(0L))
+            }
+            MediaSession.SessionResult(MediaSession.SessionResult.RESULT_SUCCESS)
+        }
+
+        override fun onSeekForward(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.SessionResult> = serviceScope.future {
+            val p = player
+            if (p != null) {
+                p.seekTo(p.currentPosition + SEEK_STEP_MS)
+            }
+            MediaSession.SessionResult(MediaSession.SessionResult.RESULT_SUCCESS)
+        }
     }
 
     private suspend fun resolveForPlayback(requestItem: MediaItem): List<MediaItem> {
@@ -318,5 +346,7 @@ class PlaybackService : MediaLibraryService() {
         const val ARTIST_PREFIX = "artist:"
         const val SEARCH_PREFIX = "search:"
         const val LIVE_PREFIX = "live-"
+        /** Android Auto rewind/fast-forward seek step (30s). */
+        private const val SEEK_STEP_MS: Long = 30_000L
     }
 }
