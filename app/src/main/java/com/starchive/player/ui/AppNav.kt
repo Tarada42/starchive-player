@@ -205,6 +205,7 @@ fun AppNav(
                                 LaunchedEffect(pinned.id) {
                                     singleRpState = viewModel.resumePointForArtist(pinned)
                                 }
+                                val singleRp = singleRpState
                                 ArtistDetailScreen(
                                     artist = pinned,
                                     tracks = t.data,
@@ -221,11 +222,10 @@ fun AppNav(
                                     onExitSingleArtist = { viewModel.setSingleArtist(null) },
                                     downloadManager = downloadManager,
                                     onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
-                                    resumeTitle = singleRpState?.tracks?.getOrNull(singleRpState.index)?.title,
+                                    resumeTitle = singleRp?.tracks?.getOrNull(singleRp.index)?.title,
                                     onResume = {
-                                        val rp = singleRpState
-                                        if (rp != null) {
-                                            manager.play(rp.tracks, rp.index, rp.positionMs)
+                                        if (singleRp != null) {
+                                            manager.play(singleRp.tracks, singleRp.index, singleRp.positionMs)
                                             navController.navigate(PlayerRoute)
                                         }
                                     },
