@@ -1,5 +1,9 @@
 package com.starchive.player.playback
 
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -14,6 +18,7 @@ import androidx.media3.session.MediaSession
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.starchive.player.MainActivity
 import com.starchive.player.StArchiveApp
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
@@ -71,7 +76,19 @@ class PlaybackService : MediaLibraryService() {
         exoPlayer.setSeekForwardIncrementMs(30_000L)
         player = exoPlayer
 
+        // Tapping the notification body (anywhere except the action buttons) opens and
+        // focuses the app. The transport buttons themselves stay handled by Media3.
+        val openAppIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, LibrarySessionCallback())
+            .setSessionActivity(openAppIntent)
             .build()
     }
 

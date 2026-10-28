@@ -19,10 +19,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LightMode
@@ -41,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,6 +76,12 @@ fun ArtistListScreen(
     onToggleTheme: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // When the sort key or direction changes, reset the scroll to the top so the
+    // user sees the first entry (they're otherwise left at the bottom of the list).
+    val gridState = rememberLazyGridState()
+    LaunchedEffect(sort, sortAscending, artists.size) {
+        if (artists.size > 0) gridState.scrollToItem(0)
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -121,24 +131,30 @@ fun ArtistListScreen(
                 FilterChip(
                     selected = sort == ArtistSort.NAME,
                     onClick = { onSortChange(ArtistSort.NAME) },
-                    label = {
-                        Text(
-                            if (sort == ArtistSort.NAME)
-                                if (sortAscending) "Name ▲" else "Name ▼"
-                            else "Name"
-                        )
-                    },
+                    label = { Text("Name") },
+                    leadingIcon = if (sort == ArtistSort.NAME) {
+                        {
+                            Icon(
+                                imageVector = if (sortAscending) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                                contentDescription = if (sortAscending) "Name stigende" else "Name faldende",
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    } else null,
                 )
                 FilterChip(
                     selected = sort == ArtistSort.DATE,
                     onClick = { onSortChange(ArtistSort.DATE) },
-                    label = {
-                        Text(
-                            if (sort == ArtistSort.DATE)
-                                if (sortAscending) "Date ▲" else "Date ▼"
-                            else "Date"
-                        )
-                    },
+                    label = { Text("Date") },
+                    leadingIcon = if (sort == ArtistSort.DATE) {
+                        {
+                            Icon(
+                                imageVector = if (sortAscending) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                                contentDescription = if (sortAscending) "Date stigende" else "Date faldende (nyeste først)",
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    } else null,
                 )
             }
             if (liveArtists.isNotEmpty()) {
@@ -183,6 +199,7 @@ fun ArtistListScreen(
             }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
+                state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
