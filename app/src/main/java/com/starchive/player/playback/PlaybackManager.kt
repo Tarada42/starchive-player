@@ -7,6 +7,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.starchive.player.StArchiveApp
+import com.starchive.player.data.DownloadManager
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
 import com.google.common.util.concurrent.ListenableFuture
@@ -25,6 +26,7 @@ import kotlinx.coroutines.withContext
 class PlaybackManager(private val context: Context, private val scope: CoroutineScope) {
 
     private val repository: Repository by lazy { (context.applicationContext as StArchiveApp).repository }
+    private val downloadManager: DownloadManager by lazy { (context.applicationContext as StArchiveApp).downloadManager }
 
     private var controller: MediaController? = null
     var controllerFuture: ListenableFuture<MediaController>? = null
@@ -68,7 +70,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
             return
         }
         queue = tracks
-        val items = tracks.map { it.toMediaItem() }
+        val items = tracks.map { it.toMediaItemWithLocal(downloadManager) }
         c.setMediaItems(items, startIndex, startPositionMs.coerceAtLeast(0L))
         c.prepare()
         c.play()
@@ -155,4 +157,27 @@ fun Track.toMediaItem(): MediaItem {
         builder.setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
     }
     return builder.build()
+}
+
+/**
+ * Same as [toMediaItem], but plays the local downloaded file instead of streaming
+ * when a copy exists (offline playback, saves mobile data).
+ */
+fun Track.toMediaItemWithLocal(downloadManager: DownloadManager): MediaItem {
+    val local = downloadManager.localUri(id)
+    if (local != null) {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setArtist(artistName)
+            .setArtworkUri(thumbnailUrl?.let { android.net.Uri.parse(it) })
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
+            .build()
+        return MediaItem.Builder()
+            .setUri(local)
+            .setMediaId(id)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+    return toMediaItem()
 }

@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
@@ -53,6 +54,9 @@ data object SearchRoute
 data object FavoritesRoute
 
 @Serializable
+data object LocalRoute
+
+@Serializable
 data class ArtistDetailRoute(val artistId: String, val artistName: String)
 
 @Serializable
@@ -62,6 +66,7 @@ enum class TopLevel(val route: Any, val label: String, val icon: androidx.compos
     Browse(HomeRoute, "Browse", Icons.Filled.Home),
     Live(LiveRoute, "Live now", Icons.Filled.PlayArrow),
     Search(SearchRoute, "Search", Icons.Filled.Search),
+    Local(LocalRoute, "Offline", Icons.Filled.Download),
     Favorites(FavoritesRoute, "Favorites", Icons.Filled.Favorite),
 }
 
@@ -82,6 +87,9 @@ fun AppNav(
 ) {
     val context = LocalContext.current
     val uiScope = rememberCoroutineScope()
+    val downloadManager = remember {
+        (context.applicationContext as com.starchive.player.StArchiveApp).downloadManager
+    }
     val manager = remember {
         PlaybackManager(context, CoroutineScope(Dispatchers.Main)).apply { connect() }
     }
@@ -201,6 +209,8 @@ fun AppNav(
                                     onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
                                     singleArtistMode = true,
                                     onExitSingleArtist = { viewModel.setSingleArtist(null) },
+                                    downloadManager = downloadManager,
+                                    onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -267,6 +277,8 @@ fun AppNav(
                             navController.navigate(PlayerRoute)
                         },
                         onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
+                        downloadManager = downloadManager,
+                        onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -347,6 +359,23 @@ fun AppNav(
                     },
                     onToggleFavoriteTrack = { viewModel.toggleFavoriteTrack(it) },
                     onToggleFavoriteArtist = { viewModel.toggleFavoriteArtist(it) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            composable<LocalRoute> {
+                val downloaded by downloadManager.downloaded.collectAsStateWithLifecycle()
+                val progress by downloadManager.progress.collectAsStateWithLifecycle()
+                LocallyAvailableScreen(
+                    downloaded = downloaded,
+                    progress = progress,
+                    downloadManager = downloadManager,
+                    onTrackClick = { track ->
+                        val localTracks = listOf(track)
+                        manager.play(localTracks, 0)
+                        navController.navigate(PlayerRoute)
+                    },
+                    onDelete = { trackId -> downloadManager.delete(trackId) },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
