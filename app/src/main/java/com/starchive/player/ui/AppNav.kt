@@ -278,29 +278,32 @@ fun AppNav(
                 when (val s = tracksState) {
                     is UiState.Loading -> Loading(Modifier.fillMaxSize())
                     is UiState.Error -> Error(s.message, Modifier.fillMaxSize())
-                    is UiState.Success -> ArtistDetailScreen(
-                        artist = artist,
-                        tracks = s.data,
-                        favorites = favoriteTrackIds,
-                        currentTrackId = current?.id,
-                        isPlaying = isPlaying,
-                        onBack = { navController.popBackStack() },
-                        onTrackClick = { tracks, index ->
-                            manager.play(tracks, index)
-                            navController.navigate(PlayerRoute)
-                        },
-                        onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
-                        downloadManager = downloadManager,
-                        onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
-                        resumeTitle = resumePoint?.tracks?.getOrNull(resumePoint.index)?.title,
-                        onResume = {
-                            resumePoint?.let { pt ->
-                                manager.play(pt.tracks, pt.index, pt.positionMs)
+                    is UiState.Success -> {
+                        val rp = resumePoint
+                        ArtistDetailScreen(
+                            artist = artist,
+                            tracks = s.data,
+                            favorites = favoriteTrackIds,
+                            currentTrackId = current?.id,
+                            isPlaying = isPlaying,
+                            onBack = { navController.popBackStack() },
+                            onTrackClick = { tracks, index ->
+                                manager.play(tracks, index)
                                 navController.navigate(PlayerRoute)
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                            },
+                            onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
+                            downloadManager = downloadManager,
+                            onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
+                            resumeTitle = rp?.tracks?.getOrNull(rp.index)?.title,
+                            onResume = {
+                                if (rp != null) {
+                                    manager.play(rp.tracks, rp.index, rp.positionMs)
+                                    navController.navigate(PlayerRoute)
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
             }
 
