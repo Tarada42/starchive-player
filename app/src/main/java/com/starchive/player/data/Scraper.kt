@@ -4,8 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -14,19 +14,17 @@ import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 /**
- * Scrapes the STArchive Apache directory listings at https://starchive.streambox.space/
+ * Fetches STArchive data from the hosted web-app API at https://webapp-copy-silk.vercel.app/
  *
- * Layout observed on the live server:
- *   /                       -> one folder per artist, e.g. href="dj_td/"
- *   /{artistId}/            -> .mp4 files, e.g. dj_td_2026-09-02-04-00.mp4
- *   /thumbnails/            -> {artistId}_picture_{timestamp}.jpg
+ * Endpoints (owned by us, cached + refreshed daily server-side):
+ *   GET /api/artists                  -> [{ id, name, displayName, date }] newest-first
+ *   GET /api/artist-thumbnails        -> { "<artistId>": "<picture url>" } (incl. Twitch fallback)
+ *   GET /api/tracks?artist=<id>       -> [{ id, artist, filename, title, url, thumbnailUrl,
+ *                                           pictureUrl, size, date, index }] newest-first
  *
- * The timestamp embedded in the .mp4 file name (…_2026-09-02-04-00.mp4) matches the
- * thumbnail's timestamp exactly, so we can derive the artwork URL directly from the
- * track file name — no need to crawl the (very large) thumbnail directory.
- *
- * Artist IDs on streambox correspond to Twitch usernames, so we resolve avatars
- * through decapi.me/twitch/avatar/{username} (public, rate-limit 100/min).
+ * The API already excludes DJs that were removed (no picture for 14+ days), applies
+ * Twitch-avatar fallback for DJs without an archive thumbnail, and resolves the newest
+ * picture per DJ — so the app no longer scrapes streambox directly.
  */
 class Scraper(
     private val baseUrl: String = DEFAULT_BASE,
@@ -42,26 +40,19 @@ class Scraper(
     private val timestampRe = Pattern.compile("(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
 
     suspend fun fetchArtists(): List<Artist> = withContext(Dispatchers.IO) {
-        val doc = getDoc("$baseUrl/")
+        val thumbs = parseThumbnailMap(getJson("$baseUrl/api/artist-thumbnails"))
         val artists = mutableListOf<Artist>()
-        val rows = doc.select("table#list tbody tr")
-        for (row in rows) {
-            val link = row.select("a[href]").firstOrNull() ?: continue
-            val href = link.attr("href")
-            // artist folders are relative links ending in "/" (skip parent, thumbnails, sort links)
-            if (!href.endsWith("/")) continue
-            if (href == "../" || href.startsWith("?") || href == "/") continue
-            val id = href.removeSuffix("/")
-            if (id == "thumbnails" || id.isBlank()) continue
-            // Source date column (e.g. "25-Jun-2026 07:00") — used for newest-first sorting.
-            val dateText = row.select("td").lastOrNull()?.text()?.trim()
+        val arr = getJsonArray("$baseUrl/api/artists")
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id").ifBlank { continue }
             artists.add(
                 Artist(
                     id = id,
-                    displayName = prettifyName(id),
-                    thumbnailUrl = null,
+                    displayName = o.optString("displayName").ifBlank { prettifyName(id) },
+                    thumbnailUrl = thumbs[id],
                     twitchAvatarUrl = null,
-                    sourceDateMillis = parseSourceDate(dateText) ?: 0L,
+                    sourceDateMillis = parseSourceDate(o.optString("date")) ?: 0L,
                 )
             )
         }
@@ -69,11 +60,12 @@ class Scraper(
     }
 
     suspend fun fetchTracks(artist: Artist): List<Track> = withContext(Dispatchers.IO) {
-        val doc = getDoc("$baseUrl/${artist.id}/")
         val tracks = mutableListOf<Track>()
-        for (a in doc.select("table#list tbody a[href]")) {
-            val fileName = a.attr("href").substringAfterLast('/')
-            if (!fileName.endsWith(".mp4", ignoreCase = true)) continue
+        val arr = getJsonArray("$baseUrl/api/tracks?artist=${artist.id}")
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val fileName = o.optString("filename")
+            if (fileName.isBlank()) continue
             val ts = extractTimestamp(fileName)
             val (title, millis) = if (ts != null) {
                 val dt = LocalDateTime.parse(ts, inputFormatter)
@@ -87,8 +79,8 @@ class Scraper(
                     artistId = artist.id,
                     artistName = artist.displayName,
                     title = title,
-                    url = "$baseUrl/${artist.id}/$fileName",
-                    thumbnailUrl = ts?.let { link("${artist.id}_picture_$it.jpg") },
+                    url = o.optString("url").ifBlank { "$baseStaticUrl/${artist.id}/$fileName" },
+                    thumbnailUrl = o.optString("pictureUrl").ifBlank { o.optString("thumbnailUrl").ifBlank { null } },
                     dateMillis = millis,
                 )
             )
@@ -158,12 +150,31 @@ class Scraper(
 
     // --- helpers ---
 
-    private fun getDoc(url: String): Document {
-        val req = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
+    private fun getJson(u: String): JSONObject {
+        val req = Request.Builder().url(u).header("User-Agent", USER_AGENT).build()
         client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) error("HTTP ${resp.code} for $url")
-            return Jsoup.parse(resp.body?.string() ?: "")
+            if (!resp.isSuccessful) error("HTTP ${resp.code} for $u")
+            return JSONObject(resp.body?.string() ?: "{}")
         }
+    }
+
+    private fun getJsonArray(u: String): JSONArray {
+        val req = Request.Builder().url(u).header("User-Agent", USER_AGENT).build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) error("HTTP ${resp.code} for $u")
+            val body = resp.body?.string() ?: "[]"
+            return JSONArray(body)
+        }
+    }
+
+    /** { "<artistId>": "<picture url>" } from the API's thumbnail map. */
+    private fun parseThumbnailMap(o: JSONObject): Map<String, String> {
+        val map = mutableMapOf<String, String>()
+        o.keys().forEach { k ->
+            val v = o.optString(k)
+            if (v.isNotBlank()) map[k] = v
+        }
+        return map
     }
 
     private fun extractTimestamp(fileName: String): String? {
@@ -171,7 +182,7 @@ class Scraper(
         return if (m.find()) m.group(1) else null
     }
 
-    /** Parse an Apache directory-listing date like "25-Jun-2026 07:00" to epoch millis. */
+    /** Parse an API date like "25-Jun-2026 07:00" to epoch millis. */
     private fun parseSourceDate(text: String?): Long? {
         if (text.isNullOrBlank()) return null
         return try {
@@ -187,10 +198,9 @@ class Scraper(
     private fun prettifyName(raw: String): String =
         raw.replace('_', ' ').trim().replace(Regex("\\s+"), " ")
 
-    private fun link(fileName: String): String = "$baseUrl/thumbnails/$fileName"
-
     companion object {
-        const val DEFAULT_BASE = "https://starchive.streambox.space"
+        const val DEFAULT_BASE = "https://webapp-copy-silk.vercel.app"
+        private const val baseStaticUrl = "https://starchive.streambox.space"
         private const val USER_AGENT = "STArchivePlayer/1.0 (Android)"
     }
 }
