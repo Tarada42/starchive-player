@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Android 13+ (API 33+): required for the playback notification to appear in
+         the notification shade when pulling down. Without it the media controls may
+         show on the lock screen but be hidden in the shade. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- The app is usable on Android Automotive OS / Android Auto head units but does
          not require it; a phone-only install remains fully functional. -->
