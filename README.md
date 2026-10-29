@@ -16,14 +16,15 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 ## ✨ Features
 
-- 🎛️ **Browse & stream** every DJ's recorded sets (audio-only MP4)
-- 🔴 **Live now** — see who's broadcasting right now and tune in instantly
+- 🎛️ **Browse & stream** every DJ's recorded sets (audio-only MP4) — grid or list view
+- 🔴 **Live now** — see who's broadcasting right now and tune in instantly (with quality choice where available)
 - ⭐ **Favourites** for artists and individual sets
 - ▶️ **Resume playback** — picks up your last track + position, per DJ
 - 📌 **Single Artist mode** — pin a DJ and focus the whole app on them
 - ⬇️ **Offline downloads** — save sets (multi-select) and play with zero data
+- 📤 **Cast** — stream to Chromecast/Google Cast devices from the phone app
 - 🔍 **Search** with persistent recent searches
-- 🚗 **Android Auto** — full media-browser tree + garage-friendly controls
+- 🚗 **Android Auto** — full media-browser tree (with Name/Date sorting and a Live section), garage-friendly controls, and 10 s back/forward seek
 - 🔔 **Background playback** with notification + lock-screen controls
 
 ---
@@ -75,7 +76,7 @@ The look is matched to the STArchive web app palette:
 
 ## License
 
-*(Add a license before going public — see `LICENSE`.)*
+Released under the [MIT License](LICENSE).
 
 <div align="center">
 
