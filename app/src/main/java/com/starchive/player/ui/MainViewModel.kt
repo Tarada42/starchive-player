@@ -80,7 +80,13 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     val favoriteArtists: StateFlow<Set<String>> = repo.favoriteArtists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-    /** DJs that are live right now (from live.streambox.space), with avatars resolved. */
+    // AA sort state mirrors the phone: NAME/DATE and ascending/descending.
+    private val _aaSort = MutableStateFlow(ArtistSort.DATE)
+    val aaSort: StateFlow<ArtistSort> = _aaSort.asStateFlow()
+    private val _aaSortAscending = MutableStateFlow(false)
+    val aaSortAscending: StateFlow<Boolean> = _aaSortAscending.asStateFlow()
+
+    /** Current live DJs, exposed for the Android Auto browse tree. */
     val liveArtists: StateFlow<List<Artist>> = repo.liveArtists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -138,8 +144,20 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
             runCatching { repo.loadArtists(forceRefresh) }
                 .onFailure { e -> _artistsLoadError.value = e.message ?: "Could not load artists" }
             launch { repo.refreshAvatars() }
-            launch { repo.loadLive() }
+            launch { repo.loadLive(forceRefresh) }
             launch { repo.loadLatestDates() }
+        }
+    }
+
+    /** Sort the artist list with the same logic used on the phone. */
+    fun sortedArtists(artists: List<Artist>, dates: Map<String, Long>, sort: ArtistSort, asc: Boolean): List<Artist> {
+        return when (sort) {
+            ArtistSort.NAME -> if (asc) artists.sortedBy { it.displayName.lowercase() }
+                else artists.sortedByDescending { it.displayName.lowercase() }
+            ArtistSort.DATE -> {
+                val keyed = artists.sortedByDescending { a -> a.sourceDateMillis.takeIf { it > 0L } ?: dates[a.id] ?: 0L }
+                if (asc) keyed.reversed() else keyed
+            }
         }
     }
 
@@ -160,6 +178,16 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
         } else {
             _artistSort.value = sort
             _sortAscending.value = sort == ArtistSort.NAME
+        }
+    }
+
+    /** Mirror sort change to AA sort state so both surfaces stay in sync. */
+    fun setAASort(sort: ArtistSort) {
+        if (sort == _aaSort.value) {
+            _aaSortAscending.value = !_aaSortAscending.value
+        } else {
+            _aaSort.value = sort
+            _aaSortAscending.value = sort == ArtistSort.NAME
         }
     }
 

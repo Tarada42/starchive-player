@@ -22,6 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.starchive.player.MainActivity
 import com.starchive.player.StArchiveApp
 import com.starchive.player.data.Artist
+import com.starchive.player.data.ArtistSort
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
 import kotlinx.coroutines.CoroutineScope
@@ -74,9 +75,10 @@ class PlaybackService : MediaLibraryService() {
             .build()
         // Android Auto's rewind/fast-forward buttons call seekBack()/seekForward().
         // media3 1.4.1 has no setSeekForwardIncrementMs, so we wrap the player in a
-        // ForwardingPlayer that overrides those two to use a fixed 30-second step
-        // (shared by the head unit and the in-app controls).
-        val seekPlayer = ThirtySecondSeekPlayer(exoPlayer)
+        // ForwardingPlayer that overrides those two to use a fixed 10-second step
+        // and explicitly advertises SEEK_BACK / SEEK_FORWARD so Android Auto shows
+        // the back/forward buttons.
+        val seekPlayer = TenSecondSeekPlayer(exoPlayer)
         player = seekPlayer
 
         // Tapping the notification body (anywhere except the action buttons) opens and
@@ -118,12 +120,16 @@ class PlaybackService : MediaLibraryService() {
         super.onDestroy()
     }
 
+    // --- Android Auto browse tree ---
+
     /**
      * Implements the browsable media tree Android Auto (and the Assistant) use:
      *
      *   ROOT
-     *   ├── Artists              (browsable)
-     *   │   └── <artist>         (browsable) -> tracks (playable)
+     *   ├── Artists              (browsable) -> sort nodes
+     *   │   ├── Sort by Name     (action node)
+     *   │   ├── Sort by Date     (action node)
+     *   ├── Live                 (browsable) -> live DJs (playable)
      *   ├── Favorites            (browsable)
      *   │   ├── Favorite Artists (browsable) -> tracks (playable)
      *   │   └── Favorite Tracks  (playable)
@@ -226,6 +232,10 @@ class PlaybackService : MediaLibraryService() {
     private suspend fun resolveBrowsableOrPlayable(mediaId: String): MediaItem? {
         if (mediaId == ROOT_ID) return folderItem(ROOT_ID, "STArchive")
         if (mediaId == ARTISTS_ID) return folderItem(ARTISTS_ID, "Artists")
+        if (mediaId == ARTISTS_NAME_ID) return folderItem(ARTISTS_NAME_ID, "Sort by Name")
+        if (mediaId == ARTISTS_DATE_ID) return folderItem(ARTISTS_DATE_ID, "Sort by Date")
+        if (mediaId == ARTISTS_TOGGLE_ID) return folderItem(ARTISTS_TOGGLE_ID, "Reverse Order")
+        if (mediaId == LIVE_ID) return folderItem(LIVE_ID, "Live")
         if (mediaId == FAVORITES_ID) return folderItem(FAVORITES_ID, "Favorites")
         if (mediaId == FAVORITE_ARTISTS_ID) return folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists")
         if (mediaId == FAVORITE_TRACKS_ID) return folderItem(FAVORITE_TRACKS_ID, "Favorite Tracks")
@@ -244,13 +254,40 @@ class PlaybackService : MediaLibraryService() {
     private suspend fun childrenOf(parentId: String): List<MediaItem> = when (parentId) {
         ROOT_ID -> listOf(
             folderItem(ARTISTS_ID, "Artists"),
+            folderItem(LIVE_ID, "Live"),
             folderItem(FAVORITES_ID, "Favorites"),
             folderItem(SEARCH_HISTORY_ID, "Search History"),
         )
         ARTISTS_ID -> {
             repository.loadArtists()
-            repository.artists.value.sortedByDescending { it.sourceDateMillis }
-                .map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
+            val sort = _aaSort.value
+            val asc = _aaSortAscending.value
+            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, sort, asc)
+            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
+        }
+        ARTISTS_NAME_ID -> {
+            _aaSort.value = ArtistSort.NAME
+            _aaSortAscending.value = true
+            repository.loadArtists()
+            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, ArtistSort.NAME, true)
+            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
+        }
+        ARTISTS_DATE_ID -> {
+            _aaSort.value = ArtistSort.DATE
+            _aaSortAscending.value = false
+            repository.loadArtists()
+            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, ArtistSort.DATE, false)
+            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
+        }
+        ARTISTS_TOGGLE_ID -> {
+            _aaSortAscending.value = !_aaSortAscending.value
+            repository.loadArtists()
+            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, _aaSort.value, _aaSortAscending.value)
+            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
+        }
+        LIVE_ID -> {
+            repository.loadLive(forceRefresh = true)
+            repository.liveArtists.value.map { it.toLiveMediaItem() }
         }
         FAVORITES_ID -> listOf(
             folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists"),
@@ -290,6 +327,41 @@ class PlaybackService : MediaLibraryService() {
     private suspend fun recentSearches(): List<String> =
         runCatching { repository.recentSearches.first() }.getOrDefault(emptyList())
 
+    /**
+     * Sort helper matching MainViewModel: by name (case-insensitive) or by newest date
+     * (sourceDateMillis, falling back to latest track-derived date).
+     */
+    private fun sortedArtists(
+        artists: List<Artist>,
+        dates: Map<String, Long>,
+        sort: ArtistSort,
+        asc: Boolean,
+    ): List<Artist> = when (sort) {
+        ArtistSort.NAME -> if (asc) artists.sortedBy { it.displayName.lowercase() }
+            else artists.sortedByDescending { it.displayName.lowercase() }
+        ArtistSort.DATE -> {
+            val keyed = artists.sortedByDescending { a -> a.sourceDateMillis.takeIf { it > 0L } ?: dates[a.id] ?: 0L }
+            if (asc) keyed.reversed() else keyed
+        }
+    }
+
+    /** Map an artist to a playable live-stream item (used by the AA "Live" node). */
+    private fun Artist.toLiveMediaItem(): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(displayName)
+            .setArtist("LIVE")
+            .setArtworkUri(bestImageUrl?.let { android.net.Uri.parse(it) })
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
+            .build()
+        return MediaItem.Builder()
+            .setUri(repository.liveStreamUrl(id))
+            .setMediaId("$LIVE_PREFIX$id")
+            .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
     private fun prettify(raw: String): String = raw.replace('_', ' ').trim()
 
     private fun folderItem(id: String, title: String): MediaItem {
@@ -314,6 +386,10 @@ class PlaybackService : MediaLibraryService() {
     companion object {
         const val ROOT_ID = "root"
         const val ARTISTS_ID = "artists"
+        const val ARTISTS_NAME_ID = "artists:name"
+        const val ARTISTS_DATE_ID = "artists:date"
+        const val ARTISTS_TOGGLE_ID = "artists:toggle"
+        const val LIVE_ID = "live"
         const val FAVORITES_ID = "favorites"
         const val FAVORITE_ARTISTS_ID = "favorite_artists"
         const val FAVORITE_TRACKS_ID = "favorite_tracks"
