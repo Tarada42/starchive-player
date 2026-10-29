@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.starchive.player.data.Artist
+import com.starchive.player.data.ArtistListLayout
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
 import kotlinx.coroutines.flow.MutableStateFlow
