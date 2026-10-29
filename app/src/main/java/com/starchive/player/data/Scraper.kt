@@ -137,7 +137,7 @@ class Scraper(
                 val found = LinkedHashSet<String>()
                 val twitchRe = Pattern.compile("twitch\\.tv/([A-Za-z0-9_]+)", Pattern.CASE_INSENSITIVE)
                 val m = twitchRe.matcher(html)
-                while (m.find()) found.add(m.group(1))
+                while (m.find()) found.add(m.group(1) ?: continue)
                 found.toList()
             }
         } catch (e: Exception) {
