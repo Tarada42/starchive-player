@@ -111,6 +111,7 @@ fun AppNav(
     val favoriteTrackObjects by viewModel.favoriteTrackObjects.collectAsStateWithLifecycle()
     val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
     val liveArtists by viewModel.liveArtists.collectAsStateWithLifecycle()
+    val artistListLayout by viewModel.artistListLayout.collectAsStateWithLifecycle()
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
 
     LaunchedEffect(Unit) {
@@ -241,6 +242,7 @@ fun AppNav(
                         singleArtistId = singleArtistId,
                         isDark = isDark,
                         liveArtists = liveArtists,
+                        layoutMode = artistListLayout,
                         onSortChange = viewModel::setArtistSort,
                         onArtistClick = { artist ->
                             selectedArtist = artist
@@ -268,6 +270,7 @@ fun AppNav(
                             viewModel.setSingleArtist(artist?.id)
                         },
                         onToggleTheme = onToggleTheme,
+                        onToggleLayoutMode = viewModel::toggleArtistListLayout,
                         modifier = Modifier.fillMaxSize(),
                         )
                     }

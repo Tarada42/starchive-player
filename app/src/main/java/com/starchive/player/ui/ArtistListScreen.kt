@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,6 +34,8 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.ViewList
+import androidx.compose.material.icons.outlined.ViewModule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.starchive.player.data.Artist
+import com.starchive.player.data.ArtistListLayout
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,19 +73,25 @@ fun ArtistListScreen(
     singleArtistId: String?,
     isDark: Boolean,
     liveArtists: List<Artist> = emptyList(),
+    layoutMode: ArtistListLayout = ArtistListLayout.GRID,
     onSortChange: (ArtistSort) -> Unit,
     onArtistClick: (Artist) -> Unit,
     onLiveClick: (Artist) -> Unit = {},
     onToggleFavorite: (Artist) -> Unit,
     onSetSingleArtist: (Artist?) -> Unit,
     onToggleTheme: () -> Unit,
+    onToggleLayoutMode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // When the sort key or direction changes, reset the scroll to the top so the
     // user sees the first entry (they're otherwise left at the bottom of the list).
     val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
     LaunchedEffect(sort, sortAscending, artists.size) {
-        if (artists.size > 0) gridState.scrollToItem(0)
+        if (artists.size > 0) {
+            gridState.scrollToItem(0)
+            listState.scrollToItem(0)
+        }
     }
     Scaffold(
         topBar = {
@@ -105,6 +116,13 @@ fun ArtistListScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onBackground,
                 ),
                 actions = {
+                    IconButton(onClick = onToggleLayoutMode) {
+                        Icon(
+                            imageVector = if (layoutMode == ArtistListLayout.GRID) Icons.Outlined.ViewList else Icons.Outlined.ViewModule,
+                            contentDescription = if (layoutMode == ArtistListLayout.GRID) "Skift til liste" else "Skift til gitter",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
                     IconButton(onClick = onToggleTheme) {
                         Icon(
                             imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
@@ -197,24 +215,30 @@ fun ArtistListScreen(
                     )
                 }
             }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                state = gridState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                items(artists, key = { it.id }) { artist ->
-                    ArtistCard(
-                        artist = artist,
-                        isFavorite = favoriteArtistIds.contains(artist.id),
-                        isPinned = artist.id == singleArtistId,
-                        onClick = { onArtistClick(artist) },
-                        onToggleFavorite = { onToggleFavorite(artist) },
-                        onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist) },
-                    )
+            // Grid mode preserves the existing card layout; list mode shows a compact
+            // row with a thumbnail on the left and the full artist name.
+            if (layoutMode == ArtistListLayout.GRID) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    state = gridState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    items(artists, key = { it.id }) { artist ->
+                        ArtistCard(
+                            artist = artist,
+                            isFavorite = favoriteArtistIds.contains(artist.id),
+                            isPinned = artist.id == singleArtistId,
+                            onClick = { onArtistClick(artist) },
+                            onToggleFavorite = { onToggleFavorite(artist) },
+                            onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist) },
+                        )
+                    }
                 }
+            } else {
+                LazyListContent(artists, favoriteArtistIds, singleArtistId, onArtistClick, onToggleFavorite, onSetSingleArtist)
             }
         }
     }
@@ -287,7 +311,7 @@ private fun ArtistCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
@@ -309,6 +333,103 @@ private fun ArtistCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LazyListContent(
+    artists: List<Artist>,
+    favoriteArtistIds: Set<String>,
+    singleArtistId: String?,
+    onArtistClick: (Artist) -> Unit,
+    onToggleFavorite: (Artist) -> Unit,
+    onSetSingleArtist: (Artist?) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(artists, key = { it.id }) { artist ->
+            ArtistListItem(
+                artist = artist,
+                isFavorite = favoriteArtistIds.contains(artist.id),
+                isPinned = artist.id == singleArtistId,
+                onClick = { onArtistClick(artist) },
+                onToggleFavorite = { onToggleFavorite(artist) },
+                onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistListItem(
+    artist: Artist,
+    isFavorite: Boolean,
+    isPinned: Boolean = false,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onSetSingle: () -> Unit = {},
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            artist.bestImageUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = artist.displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } ?: Text(
+                text = artist.displayName.take(2).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Text(
+            text = artist.displayName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onSetSingle, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Filled.PushPin,
+                contentDescription = if (isPinned) "Forlad single-artist" else "Start app på kun denne DJ",
+                tint = if (isPinned) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = if (isFavorite) "Fjern favorit" else "Tilføj favorit",
+                tint = if (isFavorite) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

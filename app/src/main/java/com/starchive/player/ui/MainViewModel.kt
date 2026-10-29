@@ -124,6 +124,10 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
         return ResumePoint(artist, tracks, index, saved.second)
     }
 
+    /** Grid / list layout for the Browse artist screen. */
+    val artistListLayout: StateFlow<ArtistListLayout> = repo.artistListLayout
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ArtistListLayout.GRID)
+
     val recentSearches: StateFlow<List<String>> = repo.recentSearches
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -140,6 +144,11 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
 
     fun loadLive(forceRefresh: Boolean = false) {
         viewModelScope.launch { repo.loadLive(forceRefresh) }
+    }
+
+    fun toggleArtistListLayout() {
+        val next = if (artistListLayout.value == ArtistListLayout.GRID) ArtistListLayout.LIST else ArtistListLayout.GRID
+        viewModelScope.launch { repo.setArtistListLayout(next) }
     }
 
     fun setArtistSort(sort: ArtistSort) {

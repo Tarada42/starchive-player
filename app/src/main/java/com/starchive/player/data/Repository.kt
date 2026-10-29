@@ -26,6 +26,7 @@ class Repository(
     private val favoritesDataStore = FavoritesDataStore(appContext)
     private val searchHistoryDataStore = SearchHistoryDataStore(appContext)
     private val playbackStateDataStore = PlaybackStateDataStore(appContext)
+    private val userPreferencesDataStore = UserPreferencesDataStore(appContext)
     private val avatarCacheFile = File(appContext.cacheDir, "avatar_cache.json")
     private val avatarCache: MutableMap<String, String> = loadAvatarCache().toMutableMap()
     private val avatarCacheTimesFile = File(appContext.cacheDir, "avatar_cache_times.json")
@@ -230,6 +231,12 @@ class Repository(
     val favoriteTracks: Flow<Set<String>> = favoritesDataStore.favoriteTracks
     val favoriteArtists: Flow<Set<String>> = favoritesDataStore.favoriteArtists
     val recentSearches: Flow<List<String>> = searchHistoryDataStore.recentQueries
+
+    // UI preferences (survives rotation/relaunch)
+    val artistListLayout: Flow<ArtistListLayout> = userPreferencesDataStore.artistListLayout
+
+    suspend fun setArtistListLayout(layout: ArtistListLayout) =
+        userPreferencesDataStore.setArtistListLayout(layout)
 
     // Playback resume state (last track/position, per-artist positions, single-artist mode)
     val lastTrackId: Flow<String?> = playbackStateDataStore.lastTrackId
