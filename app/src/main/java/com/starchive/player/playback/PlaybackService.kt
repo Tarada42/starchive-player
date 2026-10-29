@@ -263,29 +263,29 @@ class PlaybackService : MediaLibraryService() {
         )
         ARTISTS_ID -> {
             repository.loadArtists()
-            val sort = _aaSort.value
-            val asc = _aaSortAscending.value
+            val sort = _aaSort
+            val asc = _aaSortAscending
             val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, sort, asc)
             sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
         ARTISTS_NAME_ID -> {
-            _aaSort.value = ArtistSort.NAME
-            _aaSortAscending.value = true
+            _aaSort = ArtistSort.NAME
+            _aaSortAscending = true
             repository.loadArtists()
             val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, ArtistSort.NAME, true)
             sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
         ARTISTS_DATE_ID -> {
-            _aaSort.value = ArtistSort.DATE
-            _aaSortAscending.value = false
+            _aaSort = ArtistSort.DATE
+            _aaSortAscending = false
             repository.loadArtists()
             val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, ArtistSort.DATE, false)
             sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
         ARTISTS_TOGGLE_ID -> {
-            _aaSortAscending.value = !_aaSortAscending.value
+            _aaSortAscending = !_aaSortAscending
             repository.loadArtists()
-            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, _aaSort.value, _aaSortAscending.value)
+            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, _aaSort, _aaSortAscending)
             sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
         LIVE_ID -> {
