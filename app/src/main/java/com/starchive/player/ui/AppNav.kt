@@ -420,6 +420,7 @@ fun AppNav(
                     isFavorite = isFav,
                     positionMs = position,
                     durationMs = duration,
+                    isLive = current?.id?.startsWith("live-") == true,
                     onBack = { navController.popBackStack() },
                     onTogglePlay = { manager.togglePlayPause() },
                     onSeek = { ms -> manager.seekTo(ms) },
