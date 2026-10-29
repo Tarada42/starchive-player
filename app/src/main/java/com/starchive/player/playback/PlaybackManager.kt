@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.starchive.player.StArchiveApp
@@ -150,11 +151,12 @@ fun Track.toMediaItem(): MediaItem {
     val builder = MediaItem.Builder()
         .setUri(url)
         .setMediaId(id)
+        .setMimeType(MimeTypes.AUDIO_MPEG)
         .setMediaMetadata(metadata)
     // Live restreams are progressive MP3 with no file extension; set the MIME so
     // ExoPlayer doesn't have to guess (an indefinite stream stalls format detection).
     if (id.startsWith("live-")) {
-        builder.setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
+        builder.setMimeType(MimeTypes.AUDIO_MPEG)
     }
     return builder.build()
 }
@@ -176,6 +178,7 @@ fun Track.toMediaItemWithLocal(downloadManager: DownloadManager): MediaItem {
         return MediaItem.Builder()
             .setUri(local)
             .setMediaId(id)
+            .setMimeType(MimeTypes.AUDIO_MPEG)
             .setMediaMetadata(metadata)
             .build()
     }
