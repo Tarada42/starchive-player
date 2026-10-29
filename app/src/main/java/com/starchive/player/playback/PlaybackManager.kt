@@ -153,12 +153,11 @@ fun Track.toMediaItem(): MediaItem {
         .setMediaId(id)
         .setMimeType(MimeTypes.AUDIO_MPEG)
         .setMediaMetadata(metadata)
-    // Live restreams are progressive MP3 with no file extension; set the MIME so
-    // ExoPlayer doesn't have to guess (an indefinite stream stalls format detection).
-    // liveConfiguration also tells media3-cast to mark the receiver stream LIVE —
-    // without it the Chromecast tries to buffer the indefinite stream and fails.
+    // Live restreams are Icecast Ogg audio, not MP3. The URL has no file extension,
+    // so we must declare the MIME explicitly or the player tries to decode it as MP3
+    // (and the Chromecast receiver refuses the stream).
     if (id.startsWith("live-")) {
-        builder.setMimeType(MimeTypes.AUDIO_MPEG)
+        builder.setMimeType(MimeTypes.AUDIO_OGG)
         builder.setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
     }
     return builder.build()
