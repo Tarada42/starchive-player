@@ -22,7 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.starchive.player.MainActivity
 import com.starchive.player.StArchiveApp
 import com.starchive.player.data.Artist
-import com.starchive.player.data.ArtistSort
+import com.starchive.player.ui.ArtistSort
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +45,9 @@ class PlaybackService : MediaLibraryService() {
 
     private var player: Player? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
+    private var _aaSort = ArtistSort.DATE
+    private var _aaSortAscending = false
+
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val repository: Repository by lazy { (application as StArchiveApp).repository }
 
