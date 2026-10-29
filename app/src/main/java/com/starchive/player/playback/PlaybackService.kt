@@ -20,8 +20,8 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import androidx.media3.cast.CastPlayer
-import com.google.android.gms.cast.CastSession
 import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
 import com.starchive.player.MainActivity
 import com.starchive.player.StArchiveApp
@@ -109,13 +109,13 @@ class PlaybackService : MediaLibraryService() {
         )
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, seekPlayer, LibrarySessionCallback())
-            .setSessionActivity(openAppIntent)
+            .setSessionActivity(openAppIntent!!)
             .build()
 
         // Google Cast (PHONE ONLY). CastContext init can fail on devices without Play
         // Services — fail soft and keep local playback fully working.
         castContext = runCatching { CastContext.getSharedInstance(this) }.getOrNull()
-        castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
+        castContext?.sessionManager?.addSessionManagerListener(typedCastSessionListener, CastSession::class.java)
     }
 
     // --- Cast session handover (phone only; Android Auto never touches this) ---
@@ -131,6 +131,10 @@ class PlaybackService : MediaLibraryService() {
         override fun onSessionResuming(session: CastSession, sessionId: String) {}
         override fun onSessionResumeFailed(session: CastSession, error: Int) {}
     }
+
+    // Explicitly typed listener reference so Kotlin can resolve the generic class
+    // parameter for the add/remove listener calls below.
+    private val typedCastSessionListener: SessionManagerListener<CastSession> = castSessionListener
 
     /** Move the current queue/position from the local player onto a new CastPlayer. */
     private fun switchToCast() {
@@ -178,7 +182,7 @@ class PlaybackService : MediaLibraryService() {
     private fun rebuildSession(p: Player) {
         mediaLibrarySession?.release()
         mediaLibrarySession = MediaLibrarySession.Builder(this, p, LibrarySessionCallback())
-            .setSessionActivity(openAppIntent)
+            .setSessionActivity(openAppIntent!!)
             .build()
     }
 
@@ -194,7 +198,7 @@ class PlaybackService : MediaLibraryService() {
             runCatching { repository.clearLastPlayback() }
         }
         serviceScope.cancel()
-        castContext?.sessionManager?.removeSessionManagerListener(castSessionListener, CastSession::class.java)
+        castContext?.sessionManager?.removeSessionManagerListener(typedCastSessionListener, CastSession::class.java)
         mediaLibrarySession?.run {
             player.release()
             release()
