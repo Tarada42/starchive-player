@@ -155,7 +155,6 @@ fun Track.toMediaItem(): MediaItem {
         .setMediaMetadata(metadata)
     if (id.startsWith("live-")) {
         builder.setMimeType(MimeTypes.AUDIO_MPEG)
-        builder.setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
     }
     return builder.build()
 }

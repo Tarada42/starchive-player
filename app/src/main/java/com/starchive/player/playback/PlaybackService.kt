@@ -455,7 +455,6 @@ class PlaybackService : MediaLibraryService() {
             .setUri(repository.liveStreamUrl(id))
             .setMediaId("$LIVE_PREFIX$id")
             .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
-            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
             .setMediaMetadata(metadata)
             .build()
     }
