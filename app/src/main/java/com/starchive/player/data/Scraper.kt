@@ -145,9 +145,9 @@ class Scraper(
         }
     }
 
-    /** Build the playable restream URL for a live DJ's Twitch channel. */
+    /** Build the playable restream URL for a live DJ's Twitch channel (Ogg mount). */
     fun liveStreamUrl(username: String): String =
-        "https://live.streambox.space/${username.lowercase(Locale.ROOT)}_hq"
+        "https://live.streambox.space/${username.lowercase(Locale.ROOT)}"
 
     // --- helpers ---
 
