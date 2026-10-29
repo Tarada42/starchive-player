@@ -71,6 +71,10 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.4.1")
     implementation("androidx.media3:media3-common:1.4.1")
 
+    // Google Cast (PHONE ONLY — nothing here is exposed to Android Auto)
+    implementation("androidx.media3:media3-cast:1.4.1")
+    implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
+
     // Bridges suspend functions to ListenableFuture for the MediaLibrarySession callbacks
     // that Android Auto / the Media3 framework invoke.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.8.1")

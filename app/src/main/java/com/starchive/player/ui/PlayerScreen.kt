@@ -52,6 +52,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.mediarouter.app.MediaRouteButton
+import com.google.android.gms.cast.framework.CastButtonFactory
 import com.starchive.player.R
 import com.starchive.player.data.Track
 
@@ -224,7 +227,8 @@ fun PlayerScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Favorite + share
+                // Favorite + cast + share (cast button is PHONE-ONLY; Android Auto
+                // never renders PlayerScreen, so no cast functionality reaches AA).
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -238,6 +242,16 @@ fun PlayerScreen(
                             modifier = Modifier.size(36.dp),
                         )
                     }
+                    // Standard Cast button: shows the receiver list when Cast devices are
+                    // available, otherwise the standard no-target state.
+                    AndroidView(
+                        factory = { ctx ->
+                            MediaRouteButton(ctx).apply {
+                                CastButtonFactory.setUpMediaRouteButton(ctx, this)
+                            }
+                        },
+                        modifier = Modifier.size(56.dp),
+                    )
                     IconButton(onClick = onShare, modifier = Modifier.size(56.dp)) {
                         Icon(
                             imageVector = Icons.Filled.Share,

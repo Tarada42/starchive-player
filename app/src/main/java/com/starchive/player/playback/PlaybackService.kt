@@ -19,6 +19,10 @@ import androidx.media3.session.MediaSession
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import androidx.media3.cast.CastPlayer
+import com.google.android.gms.cast.CastSession
+import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.SessionManagerListener
 import com.starchive.player.MainActivity
 import com.starchive.player.StArchiveApp
 import com.starchive.player.data.Artist
@@ -44,6 +48,12 @@ import kotlinx.coroutines.launch
 class PlaybackService : MediaLibraryService() {
 
     private var player: Player? = null
+    /** The local (ExoPlayer-wrapped) player; kept so we can swap back after casting. */
+    private var localPlayer: Player? = null
+    private var castPlayer: CastPlayer? = null
+    private var castContext: CastContext? = null
+    private var isCasting = false
+    private var openAppIntent: PendingIntent? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
     private var _aaSort = ArtistSort.DATE
     private var _aaSortAscending = false
@@ -83,11 +93,12 @@ class PlaybackService : MediaLibraryService() {
         // the back/forward buttons.
         val seekPlayer = TenSecondSeekPlayer(exoPlayer)
         player = seekPlayer
+        localPlayer = seekPlayer
 
         // Tapping the notification body (anywhere except the action buttons) opens and
         // focuses the app, directly on the Player screen for the now-playing track.
         // The transport buttons themselves stay handled by Media3.
-        val openAppIntent = PendingIntent.getActivity(
+        openAppIntent = PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java).apply {
@@ -98,6 +109,75 @@ class PlaybackService : MediaLibraryService() {
         )
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, seekPlayer, LibrarySessionCallback())
+            .setSessionActivity(openAppIntent)
+            .build()
+
+        // Google Cast (PHONE ONLY). CastContext init can fail on devices without Play
+        // Services — fail soft and keep local playback fully working.
+        castContext = runCatching { CastContext.getSharedInstance(this) }.getOrNull()
+        castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
+    }
+
+    // --- Cast session handover (phone only; Android Auto never touches this) ---
+
+    private val castSessionListener = object : SessionManagerListener<CastSession> {
+        override fun onSessionStarted(session: CastSession, sessionId: String) = switchToCast()
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) = switchToCast()
+        override fun onSessionEnded(session: CastSession, error: Int) = switchToLocal()
+        override fun onSessionSuspended(session: CastSession, reason: Int) = switchToLocal()
+        override fun onSessionStarting(session: CastSession) {}
+        override fun onSessionStartFailed(session: CastSession, error: Int) {}
+        override fun onSessionEnding(session: CastSession) {}
+        override fun onSessionResuming(session: CastSession, sessionId: String) {}
+        override fun onSessionResumeFailed(session: CastSession, error: Int) {}
+    }
+
+    /** Move the current queue/position from the local player onto a new CastPlayer. */
+    private fun switchToCast() {
+        val ctx = castContext ?: return
+        val old = player ?: return
+        if (isCasting) return
+        val cp = CastPlayer(ctx)
+        castPlayer = cp
+        transferPlaybackState(from = old, to = cp)
+        old.pause()
+        rebuildSession(cp)
+        player = cp
+        isCasting = true
+    }
+
+    /** Move playback back to the local player when the cast session ends. */
+    private fun switchToLocal() {
+        val lp = localPlayer ?: return
+        val old = player ?: return
+        if (!isCasting) return
+        transferPlaybackState(from = old, to = lp)
+        old.pause()
+        castPlayer?.release()
+        castPlayer = null
+        rebuildSession(lp)
+        player = lp
+        isCasting = false
+    }
+
+    /** Copy media items + current index/position/play state between players. */
+    private fun transferPlaybackState(from: Player, to: Player) {
+        val items = (0 until from.mediaItemCount).map { from.getMediaItemAt(it) }
+        if (items.isNotEmpty()) {
+            to.setMediaItems(
+                items,
+                from.currentMediaItemIndex.coerceAtLeast(0),
+                from.currentPosition.coerceAtLeast(0L),
+            )
+        }
+        to.playWhenReady = from.playWhenReady
+        to.prepare()
+    }
+
+    /** MediaSession can't swap its player in place — release and rebuild around [p]. */
+    private fun rebuildSession(p: Player) {
+        mediaLibrarySession?.release()
+        mediaLibrarySession = MediaLibrarySession.Builder(this, p, LibrarySessionCallback())
             .setSessionActivity(openAppIntent)
             .build()
     }
@@ -114,12 +194,15 @@ class PlaybackService : MediaLibraryService() {
             runCatching { repository.clearLastPlayback() }
         }
         serviceScope.cancel()
+        castContext?.sessionManager?.removeSessionManagerListener(castSessionListener, CastSession::class.java)
         mediaLibrarySession?.run {
             player.release()
             release()
         }
         mediaLibrarySession = null
         player = null
+        castPlayer?.release()
+        castPlayer = null
         super.onDestroy()
     }
 
@@ -266,7 +349,14 @@ class PlaybackService : MediaLibraryService() {
             val sort = _aaSort
             val asc = _aaSortAscending
             val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, sort, asc)
-            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
+            // Prepend the sort controls so the driver can switch Name/Date and reverse
+            // the direction. Labels reflect the CURRENT state so the driver sees what
+            // tapping will do.
+            listOf(
+                folderItem(ARTISTS_NAME_ID, sortLabel(ArtistSort.NAME, sort, asc)),
+                folderItem(ARTISTS_DATE_ID, sortLabel(ArtistSort.DATE, sort, asc)),
+                folderItem(ARTISTS_TOGGLE_ID, "Reverse order"),
+            ) + sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
         ARTISTS_NAME_ID -> {
             _aaSort = ArtistSort.NAME
@@ -363,6 +453,13 @@ class PlaybackService : MediaLibraryService() {
             .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
             .setMediaMetadata(metadata)
             .build()
+    }
+
+    /** Builds a label for the sort node reflecting the current sort/direction. */
+    private fun sortLabel(target: ArtistSort, currentSort: ArtistSort, asc: Boolean): String {
+        val arrow = if (asc) "↑" else "↓"
+        val base = if (target == ArtistSort.NAME) "Name" else "Date"
+        return if (target == currentSort) "$base $arrow" else base
     }
 
     private fun prettify(raw: String): String = raw.replace('_', ' ').trim()
