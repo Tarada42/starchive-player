@@ -56,6 +56,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
 
+    // AppCompat (needed by MediaRouteButton / Cast chooser dialog)
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
     // Compose
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
