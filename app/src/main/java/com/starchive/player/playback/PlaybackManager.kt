@@ -153,11 +153,8 @@ fun Track.toMediaItem(): MediaItem {
         .setMediaId(id)
         .setMimeType(MimeTypes.AUDIO_MPEG)
         .setMediaMetadata(metadata)
-    // Live restreams are Icecast Ogg audio, not MP3. The URL has no file extension,
-    // so we must declare the MIME explicitly or the player tries to decode it as MP3
-    // (and the Chromecast receiver refuses the stream).
     if (id.startsWith("live-")) {
-        builder.setMimeType(MimeTypes.AUDIO_OGG)
+        builder.setMimeType(MimeTypes.AUDIO_MPEG)
         builder.setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
     }
     return builder.build()
