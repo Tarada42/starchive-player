@@ -145,8 +145,12 @@ class Scraper(
         }
     }
 
-    /** Build the playable restream URL for a live DJ's Twitch channel (Ogg mount). */
-    fun liveStreamUrl(username: String): String =
+    /** Build the high-quality MP3 restream URL for a live DJ's Twitch channel. */
+    fun liveStreamUrlHigh(username: String): String =
+        "https://live.streambox.space/${username.lowercase(Locale.ROOT)}_hq"
+
+    /** Build the low-quality Ogg restream URL for a live DJ's Twitch channel. */
+    fun liveStreamUrlLow(username: String): String =
         "https://live.streambox.space/${username.lowercase(Locale.ROOT)}"
 
     // --- helpers ---

@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -113,6 +115,48 @@ fun AppNav(
     val liveArtists by viewModel.liveArtists.collectAsStateWithLifecycle()
     val artistListLayout = viewModel.artistListLayout.collectAsStateWithLifecycle()
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
+    var liveQualityArtist by remember { mutableStateOf<Artist?>(null) }
+
+    if (liveQualityArtist != null) {
+        val artist = liveQualityArtist!!
+        AlertDialog(
+            onDismissRequest = { liveQualityArtist = null },
+            title = { Text("Choose quality") },
+            text = { Text("Stream ${artist.displayName} live audio:") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val liveTrack = Track(
+                        id = "live-${artist.id}",
+                        artistId = artist.id,
+                        artistName = artist.displayName,
+                        title = "${artist.displayName} — LIVE (High)",
+                        url = viewModel.liveStreamUrlHigh(artist.id),
+                        thumbnailUrl = artist.bestImageUrl,
+                        dateMillis = System.currentTimeMillis(),
+                    )
+                    manager.playTrack(liveTrack)
+                    liveQualityArtist = null
+                    navController.navigate(PlayerRoute)
+                }) { Text("High (MP3)") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val liveTrack = Track(
+                        id = "live-${artist.id}",
+                        artistId = artist.id,
+                        artistName = artist.displayName,
+                        title = "${artist.displayName} — LIVE (Low)",
+                        url = viewModel.liveStreamUrlLow(artist.id),
+                        thumbnailUrl = artist.bestImageUrl,
+                        dateMillis = System.currentTimeMillis(),
+                    )
+                    manager.playTrack(liveTrack)
+                    liveQualityArtist = null
+                    navController.navigate(PlayerRoute)
+                }) { Text("Low (Ogg)") }
+            },
+        )
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadArtists()
@@ -250,18 +294,7 @@ fun AppNav(
                             navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
                         },
                         onLiveClick = { artist ->
-                            // Play the DJ's current live restream (HQ MP3).
-                            val liveTrack = Track(
-                                id = "live-${artist.id}",
-                                artistId = artist.id,
-                                artistName = artist.displayName,
-                                title = "${artist.displayName} — LIVE",
-                                url = viewModel.liveStreamUrl(artist.id),
-                                thumbnailUrl = artist.bestImageUrl,
-                                dateMillis = System.currentTimeMillis(),
-                            )
-                            manager.playTrack(liveTrack)
-                            navController.navigate(PlayerRoute)
+                            liveQualityArtist = artist
                         },
                         onToggleFavorite = { artist ->
                             viewModel.toggleFavoriteArtist(artist)
@@ -331,17 +364,7 @@ fun AppNav(
                     liveArtists = liveArtists,
                     isRefreshing = false,
                     onPlay = { artist ->
-                        val liveTrack = Track(
-                            id = "live-${artist.id}",
-                            artistId = artist.id,
-                            artistName = artist.displayName,
-                            title = "${artist.displayName} — LIVE",
-                            url = viewModel.liveStreamUrl(artist.id),
-                            thumbnailUrl = artist.bestImageUrl,
-                            dateMillis = System.currentTimeMillis(),
-                        )
-                        manager.playTrack(liveTrack)
-                        navController.navigate(PlayerRoute)
+                        liveQualityArtist = artist
                     },
                     onOpenTwitch = { artist ->
                         context.startActivity(

@@ -90,8 +90,15 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     val liveArtists: StateFlow<List<Artist>> = repo.liveArtists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** High-quality MP3 restream URL for a live DJ. */
+    fun liveStreamUrlHigh(username: String): String = repo.liveStreamUrlHigh(username)
+
+    /** Low-quality Ogg restream URL for a live DJ. */
+    fun liveStreamUrlLow(username: String): String = repo.liveStreamUrlLow(username)
+
     /** Playable HQ restream URL for a live DJ's Twitch channel. */
-    fun liveStreamUrl(username: String): String = repo.liveStreamUrl(username)
+    @Deprecated("Use liveStreamUrlHigh or liveStreamUrlLow")
+    fun liveStreamUrl(username: String): String = liveStreamUrlHigh(username)
 
     /** Last-played track/position + per-artist resume points + single-artist mode. */
     val lastTrackId: StateFlow<String?> = repo.lastTrackId

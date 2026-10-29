@@ -141,7 +141,8 @@ class Repository(
     }
 
     /** Playable HQ restream URL for a live DJ's Twitch channel. */
-    fun liveStreamUrl(username: String): String = scraper.liveStreamUrl(username)
+    fun liveStreamUrlHigh(username: String): String = scraper.liveStreamUrlHigh(username)
+    fun liveStreamUrlLow(username: String): String = scraper.liveStreamUrlLow(username)
 
     /**
      * Refresh Twitch avatars once per day (24h TTL). Artists with a fresh cached avatar

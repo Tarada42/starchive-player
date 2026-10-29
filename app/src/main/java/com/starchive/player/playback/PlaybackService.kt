@@ -303,6 +303,7 @@ class PlaybackService : MediaLibraryService() {
         return when {
             // Live restreams carry their own playable URL/MIME; keep them as-is rather
             // than trying to resolve against the archive (they have no track file id).
+            mediaId.startsWith(LIVE_HIGH_PREFIX) || mediaId.startsWith(LIVE_LOW_PREFIX) -> listOf(requestItem)
             mediaId.startsWith(LIVE_PREFIX) -> listOf(requestItem)
             mediaId.startsWith(ARTIST_PREFIX) -> {
                 val artistId = mediaId.removePrefix(ARTIST_PREFIX)
@@ -326,6 +327,16 @@ class PlaybackService : MediaLibraryService() {
         if (mediaId == ARTISTS_DATE_ID) return folderItem(ARTISTS_DATE_ID, "Sort by Date")
         if (mediaId == ARTISTS_TOGGLE_ID) return folderItem(ARTISTS_TOGGLE_ID, "Reverse Order")
         if (mediaId == LIVE_ID) return folderItem(LIVE_ID, "Live")
+        if (mediaId.startsWith(LIVE_FOLDER_PREFIX)) {
+            val artistId = mediaId.removePrefix(LIVE_FOLDER_PREFIX)
+            val artist = repository.artists.value.find { it.id == artistId }
+            return artist?.toLiveFolderItem() ?: folderItem(mediaId, prettify(artistId))
+        }
+        if (mediaId.startsWith(LIVE_HIGH_PREFIX) || mediaId.startsWith(LIVE_LOW_PREFIX)) {
+            val high = mediaId.startsWith(LIVE_HIGH_PREFIX)
+            val artistId = mediaId.removePrefix(if (high) LIVE_HIGH_PREFIX else LIVE_LOW_PREFIX)
+            return liveQualityItem(artistId, high)
+        }
         if (mediaId == FAVORITES_ID) return folderItem(FAVORITES_ID, "Favorites")
         if (mediaId == FAVORITE_ARTISTS_ID) return folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists")
         if (mediaId == FAVORITE_TRACKS_ID) return folderItem(FAVORITE_TRACKS_ID, "Favorite Tracks")
@@ -382,9 +393,8 @@ class PlaybackService : MediaLibraryService() {
             val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, _aaSort, _aaSortAscending)
             sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
-        LIVE_ID -> {
-            repository.loadLive(forceRefresh = true)
-            repository.liveArtists.value.map { it.toLiveMediaItem() }
+        LIVE_ID -> repository.loadLive(forceRefresh = true).let {
+            repository.liveArtists.value.map { it.toLiveFolderItem() }
         }
         FAVORITES_ID -> listOf(
             folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists"),
@@ -399,6 +409,13 @@ class PlaybackService : MediaLibraryService() {
         FAVORITE_TRACKS_ID -> favoriteTracks().map { it.toMediaItem() }
         SEARCH_HISTORY_ID -> recentSearches().map { folderItem("$SEARCH_PREFIX$it", it) }
         else -> when {
+            parentId.startsWith(LIVE_FOLDER_PREFIX) -> {
+                val artistId = parentId.removePrefix(LIVE_FOLDER_PREFIX)
+                listOf(
+                    liveQualityItem(artistId, high = true),
+                    liveQualityItem(artistId, high = false),
+                )
+            }
             parentId.startsWith(ARTIST_PREFIX) ->
                 tracksForArtistId(parentId.removePrefix(ARTIST_PREFIX)).map { it.toMediaItem() }
             parentId.startsWith(SEARCH_PREFIX) ->
@@ -442,19 +459,39 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    /** Map an artist to a playable live-stream item (used by the AA "Live" node). */
-    private fun Artist.toLiveMediaItem(): MediaItem {
+    /** Map an artist to a browsable folder containing High/Low live stream children. */
+    private fun Artist.toLiveFolderItem(): MediaItem {
         val metadata = MediaMetadata.Builder()
             .setTitle(displayName)
             .setArtist("LIVE")
             .setArtworkUri(bestImageUrl?.let { android.net.Uri.parse(it) })
+            .setIsBrowsable(true)
+            .setIsPlayable(false)
+            .build()
+        return MediaItem.Builder()
+            .setMediaId("$LIVE_FOLDER_PREFIX$id")
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
+    /** Build a playable live-stream item for a specific quality. */
+    private fun liveQualityItem(artistId: String, high: Boolean): MediaItem {
+        val artist = repository.artists.value.find { it.id == artistId }
+            ?: Artist(artistId, prettify(artistId), null, null)
+        val url = if (high) repository.liveStreamUrlHigh(artistId) else repository.liveStreamUrlLow(artistId)
+        val mime = if (high) androidx.media3.common.MimeTypes.AUDIO_MPEG else androidx.media3.common.MimeTypes.AUDIO_OGG
+        val metadata = MediaMetadata.Builder()
+            .setTitle(artist.displayName)
+            .setArtist(if (high) "LIVE — High (MP3)" else "LIVE — Low (Ogg)")
+            .setArtworkUri(artist.bestImageUrl?.let { android.net.Uri.parse(it) })
             .setIsBrowsable(false)
             .setIsPlayable(true)
             .build()
+        val prefix = if (high) LIVE_HIGH_PREFIX else LIVE_LOW_PREFIX
         return MediaItem.Builder()
-            .setUri(repository.liveStreamUrl(id))
-            .setMediaId("$LIVE_PREFIX$id")
-            .setMimeType(androidx.media3.common.MimeTypes.AUDIO_OGG)
+            .setUri(url)
+            .setMediaId("$prefix$artistId")
+            .setMimeType(mime)
             .setMediaMetadata(metadata)
             .build()
     }
@@ -501,5 +538,8 @@ class PlaybackService : MediaLibraryService() {
         const val ARTIST_PREFIX = "artist:"
         const val SEARCH_PREFIX = "search:"
         const val LIVE_PREFIX = "live-"
+        const val LIVE_FOLDER_PREFIX = "live-folder:"
+        const val LIVE_HIGH_PREFIX = "live-high:"
+        const val LIVE_LOW_PREFIX = "live-low:"
     }
 }
