@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STArchive Cast Receiver</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #11111c;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #status {
+            font-size: 1.5rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">STArchive Cast Receiver ready</div>
+    <audio id="media"></audio>
+
+    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+    <script>
+        const context = cast.framework.CastReceiverContext.getInstance();
+        const playerManager = context.getPlayerManager();
+        const audio = document.getElementById('media');
+
+        // Intercept LOAD requests so we can hand the stream URL to a plain
+        // <audio> element. The default CAF player tries to buffer and parse the
+        // stream itself, which breaks on Icecast ICY metadata; the browser's
+        // <audio> element handles Icecast correctly.
+        playerManager.setMessageInterceptor(
+            cast.framework.messages.MessageType.LOAD,
+            (request) => {
+                const url = request.media && request.media.contentId;
+                if (!url) {
+                    return request;
+                }
+                document.getElementById('status').textContent = 'Playing: ' + url;
+                audio.src = url;
+                audio.play().catch((e) => {
+                    console.error('Audio playback failed', e);
+                });
+                // Return a minimal LOAD response so CAF stays happy.
+                return request;
+            }
+        );
+
+        // Keep the receiver alive while audio plays.
+        context.start();
+    </script>
+</body>
+</html>
