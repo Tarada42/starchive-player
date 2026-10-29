@@ -34,8 +34,8 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.automirrored.outlined.List
-import androidx.compose.material.icons.outlined.ViewModule
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewHeadline
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -118,7 +118,7 @@ fun ArtistListScreen(
                 actions = {
                     IconButton(onClick = onToggleLayoutMode) {
                         Icon(
-                            imageVector = if (layoutMode == ArtistListLayout.GRID) Icons.Outlined.List else Icons.Outlined.ViewModule,
+                            imageVector = if (layoutMode == ArtistListLayout.GRID) Icons.Filled.ViewHeadline else Icons.Filled.GridView,
                             contentDescription = if (layoutMode == ArtistListLayout.GRID) "Skift til liste" else "Skift til gitter",
                             tint = MaterialTheme.colorScheme.onBackground,
                         )
