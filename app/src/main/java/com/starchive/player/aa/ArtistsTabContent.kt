@@ -3,9 +3,12 @@ package com.starchive.player.aa
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
+import androidx.car.app.model.CarColor
+import androidx.car.app.model.CarIcon
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
+import androidx.core.graphics.drawable.IconCompat
 import androidx.car.app.model.Template
 import com.starchive.player.R
 import com.starchive.player.data.Artist
@@ -89,6 +92,7 @@ class ArtistsTabContent(
 
         // Sort controls as template-scoped actions so the host renders them as BUTTONS,
         // not list rows (rows inside TabContents have no header to hang them on).
+        // Template-scoped actions REQUIRE a CarIcon + CarColor (else addAction throws).
         val toggleSortModeAction = Action.Builder()
             .setTitle(
                 carContext.getString(
@@ -96,6 +100,8 @@ class ArtistsTabContent(
                     carContext.getString(sortMode.labelRes)
                 )
             )
+            .setIcon(icon(R.drawable.aa_ic_sort))
+            .setBackgroundColor(CarColor.BLUE)
             .setOnClickListener {
                 sortMode = sortMode.next()
                 ascending = when (sortMode) {
@@ -115,6 +121,8 @@ class ArtistsTabContent(
                     if (ascending) "▲" else "▼"
                 )
             )
+            .setIcon(icon(R.drawable.aa_ic_order))
+            .setBackgroundColor(CarColor.BLUE)
             .setOnClickListener {
                 ascending = !ascending
                 scope.launch { sortDataStore.save(sortMode, ascending) }
@@ -133,6 +141,10 @@ class ArtistsTabContent(
     fun onDestroy() {
         scope.cancel()
     }
+
+    /** Build a [CarIcon] from a vector drawable resource, as actions require one. */
+    private fun icon(resId: Int): CarIcon =
+        CarIcon.Builder(IconCompat.createWithResource(carContext, resId)).build()
 
     private fun applySort(source: List<Artist>): List<Artist> {
         val base = when (sortMode) {
