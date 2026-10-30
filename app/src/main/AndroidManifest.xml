@@ -11,6 +11,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="androidx.car.app.MEDIA_TEMPLATES" />
 
+    <!-- Single-APK templated media app: the templates host must be optional so the
+         app still distributes to phones that don't have Android Automotive OS. -->
+    <uses-feature
+        android:name="android.software.car.templates_host.media"
+        android:required="false" />
+
     <application
         android:name=".StArchiveApp"
         android:allowBackup="true"
