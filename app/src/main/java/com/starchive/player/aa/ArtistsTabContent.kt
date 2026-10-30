@@ -2,6 +2,7 @@ package com.starchive.player.aa
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Action
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
@@ -73,44 +74,6 @@ class ArtistsTabContent(
 
         val listBuilder = ItemList.Builder()
 
-        // Sort controls live inside the list because TabContents may not set their own header.
-        listBuilder.addItem(
-            Row.Builder()
-                .setTitle(
-                    carContext.getString(
-                        R.string.aa_sort_by,
-                        carContext.getString(sortMode.labelRes)
-                    )
-                )
-                .setOnClickListener {
-                    sortMode = sortMode.next()
-                    ascending = when (sortMode) {
-                        SortMode.DATE -> false // newest first
-                        SortMode.NAME -> true  // A-Z
-                    }
-                    scope.launch { sortDataStore.save(sortMode, ascending) }
-                    artists = applySort(repository.artists.value)
-                    onInvalidate()
-                }
-                .build()
-        )
-        listBuilder.addItem(
-            Row.Builder()
-                .setTitle(
-                    carContext.getString(
-                        R.string.aa_sort_order,
-                        if (ascending) "▲" else "▼"
-                    )
-                )
-                .setOnClickListener {
-                    ascending = !ascending
-                    scope.launch { sortDataStore.save(sortMode, ascending) }
-                    artists = applySort(repository.artists.value)
-                    onInvalidate()
-                }
-                .build()
-        )
-
         artists.forEach { artist ->
             val icon = imageCache.iconFor(artist.id) ?: imageCache.placeholderIcon()
             listBuilder.addItem(
@@ -124,8 +87,46 @@ class ArtistsTabContent(
             )
         }
 
+        // Sort controls as template-scoped actions so the host renders them as BUTTONS,
+        // not list rows (rows inside TabContents have no header to hang them on).
+        val toggleSortModeAction = Action.Builder()
+            .setTitle(
+                carContext.getString(
+                    R.string.aa_sort_by,
+                    carContext.getString(sortMode.labelRes)
+                )
+            )
+            .setOnClickListener {
+                sortMode = sortMode.next()
+                ascending = when (sortMode) {
+                    SortMode.DATE -> false // newest first
+                    SortMode.NAME -> true  // A-Z
+                }
+                scope.launch { sortDataStore.save(sortMode, ascending) }
+                artists = applySort(repository.artists.value)
+                onInvalidate()
+            }
+            .build()
+
+        val toggleOrderAction = Action.Builder()
+            .setTitle(
+                carContext.getString(
+                    R.string.aa_sort_order,
+                    if (ascending) "▲" else "▼"
+                )
+            )
+            .setOnClickListener {
+                ascending = !ascending
+                scope.launch { sortDataStore.save(sortMode, ascending) }
+                artists = applySort(repository.artists.value)
+                onInvalidate()
+            }
+            .build()
+
         return ListTemplate.Builder()
             .setSingleList(listBuilder.build())
+            .addAction(toggleSortModeAction)
+            .addAction(toggleOrderAction)
             .build()
     }
 
