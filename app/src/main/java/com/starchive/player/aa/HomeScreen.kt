@@ -2,6 +2,7 @@ package com.starchive.player.aa
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Header
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
@@ -31,8 +32,12 @@ class HomeScreen(
             )
             .build()
 
-        return ListTemplate.Builder()
+        val header = Header.Builder()
             .setTitle(carContext.getString(R.string.aa_home_title))
+            .build()
+
+        return ListTemplate.Builder()
+            .setHeader(header)
             .setSingleList(list)
             .build()
     }

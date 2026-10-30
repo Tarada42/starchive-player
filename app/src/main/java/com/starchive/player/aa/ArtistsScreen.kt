@@ -3,7 +3,7 @@ package com.starchive.player.aa
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
-import androidx.car.app.model.ActionStrip
+import androidx.car.app.model.Header
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
@@ -57,7 +57,11 @@ class ArtistsScreen(
     override fun onGetTemplate(): Template {
         if (!loaded) {
             return ListTemplate.Builder()
-                .setTitle(carContext.getString(R.string.aa_artists))
+                .setHeader(
+                    Header.Builder()
+                        .setTitle(carContext.getString(R.string.aa_artists))
+                        .build()
+                )
                 .setLoading(true)
                 .build()
         }
@@ -100,15 +104,15 @@ class ArtistsScreen(
             }
             .build()
 
-        val actionStrip = ActionStrip.Builder()
-            .addAction(sortAction)
-            .addAction(directionAction)
+        val header = Header.Builder()
+            .setTitle(carContext.getString(R.string.aa_artists))
+            .setStartHeaderAction(Action.BACK)
+            .addEndHeaderAction(sortAction)
+            .addEndHeaderAction(directionAction)
             .build()
 
         return ListTemplate.Builder()
-            .setTitle(carContext.getString(R.string.aa_artists))
-            .setHeaderAction(Action.BACK)
-            .setActionStrip(actionStrip)
+            .setHeader(header)
             .setSingleList(listBuilder.build())
             .build()
     }

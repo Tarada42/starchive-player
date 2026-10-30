@@ -3,6 +3,7 @@ package com.starchive.player.aa
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
+import androidx.car.app.model.Header
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
@@ -47,7 +48,11 @@ class TracksScreen(
     override fun onGetTemplate(): Template {
         if (!loaded) {
             return ListTemplate.Builder()
-                .setTitle(artist.displayName)
+                .setHeader(
+                    Header.Builder()
+                        .setTitle(artist.displayName)
+                        .build()
+                )
                 .setLoading(true)
                 .build()
         }
@@ -63,8 +68,12 @@ class TracksScreen(
         }
 
         return ListTemplate.Builder()
-            .setTitle(artist.displayName)
-            .setHeaderAction(Action.BACK)
+            .setHeader(
+                Header.Builder()
+                    .setTitle(artist.displayName)
+                    .setStartHeaderAction(Action.BACK)
+                    .build()
+            )
             .setSingleList(listBuilder.build())
             .build()
     }
