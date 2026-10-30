@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- List view icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3,5h4v4H3V5zM9,5h12v2H9V5zM3,9h4v4H3V9zM9,9h12v2H9V9zM3,13h4v4H3V13zM9,13h12v2H9V13z" />
+</vector>

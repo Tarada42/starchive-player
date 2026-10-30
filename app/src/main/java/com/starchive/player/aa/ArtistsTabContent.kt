@@ -15,6 +15,7 @@ import androidx.car.app.model.Template
 import androidx.core.graphics.drawable.IconCompat
 import com.starchive.player.R
 import com.starchive.player.data.Artist
+import com.starchive.player.data.ArtistListLayout
 import com.starchive.player.data.Repository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,7 @@ class ArtistsTabContent(
     private var artists: List<Artist> = emptyList()
     private var sortMode = SortMode.DATE
     private var ascending = false
+    private var layout = ArtistListLayout.GRID
     private var loaded = false
 
     private val sortDataStore = AaSortDataStore(carContext)
@@ -56,6 +58,7 @@ class ArtistsTabContent(
             // same ordering after an AA reconnect or app restart.
             sortMode = sortDataStore.sortMode.first()
             ascending = sortDataStore.ascending.first()
+            layout = repository.artistListLayout.first()
 
             // Repository I/O (scrape, per-artist track scans) must run off the Main dispatcher.
             // Doing it on Main froze the AA UI here, which delayed tap-to-play for ~a minute.
@@ -85,23 +88,32 @@ class ArtistsTabContent(
 
         if (artists.isEmpty()) {
             builder.addSection(createEmptySection())
-        } else {
+        } else if (layout == ArtistListLayout.GRID) {
             builder.addSection(createGridSection())
+        } else {
+            builder.addSection(createListSection())
         }
 
-        // Sort controls as template-scoped actions so the host renders them as BUTTONS.
-        // IMPORTANT: inside a media-app (MEDIA_TEMPLATES) TabTemplate, template actions may NOT
-        // carry a custom title ("Action list exceeded max number of 0 actions with custom
-        // titles" crash). So these are ICON-ONLY: a required CarIcon + CarColor, no setTitle.
+        // Template-scoped actions as BUTTONS. Constraints inside a media-app (MEDIA_TEMPLATES)
+        // TabTemplate: actions MUST be icon-only (no custom title — "max number of 0 actions
+        // with custom titles" crash) AND at most 2 actions (ACTIONS_CONSTRAINTS_FAB max 2).
+        // So our action budget is exactly 2: (1) a combined sort-mode + order cycle, (2) the
+        // grid<->list layout toggle. Both are icon-only with a required CarIcon + CarColor.
         builder.addAction(
             Action.Builder()
                 .setIcon(icon(R.drawable.aa_ic_sort))
                 .setBackgroundColor(CarColor.BLUE)
                 .setOnClickListener {
-                    sortMode = sortMode.next()
-                    ascending = when (sortMode) {
-                        SortMode.DATE -> false // newest first
-                        SortMode.NAME -> true  // A-Z
+                    // Cycle: newest-first -> oldest-first -> A-Z -> Z-A -> ...
+                    when {
+                        sortMode == SortMode.DATE && !ascending -> ascending = true
+                        sortMode == SortMode.DATE && ascending -> {
+                            sortMode = SortMode.NAME; ascending = true
+                        }
+                        sortMode == SortMode.NAME && ascending -> ascending = false
+                        else -> { // NAME descending -> back to DATE newest-first
+                            sortMode = SortMode.DATE; ascending = false
+                        }
                     }
                     scope.launch { sortDataStore.save(sortMode, ascending) }
                     artists = applySort(repository.artists.value)
@@ -112,12 +124,11 @@ class ArtistsTabContent(
 
         builder.addAction(
             Action.Builder()
-                .setIcon(icon(R.drawable.aa_ic_order))
+                .setIcon(icon(R.drawable.aa_ic_view_list))
                 .setBackgroundColor(CarColor.BLUE)
                 .setOnClickListener {
-                    ascending = !ascending
-                    scope.launch { sortDataStore.save(sortMode, ascending) }
-                    artists = applySort(repository.artists.value)
+                    layout = if (layout == ArtistListLayout.GRID) ArtistListLayout.LIST else ArtistListLayout.GRID
+                    scope.launch { repository.setArtistListLayout(layout) }
                     onInvalidate()
                 }
                 .build()
@@ -128,6 +139,24 @@ class ArtistsTabContent(
 
     fun onDestroy() {
         scope.cancel()
+    }
+
+    /** Build a list (row) section of artists, each with a small thumbnail + full name. */
+    private fun createListSection(): RowSection {
+        val rowBuilder = RowSection.Builder()
+        artists.forEach { artist ->
+            val icon = imageCache.iconFor(artist.id) ?: imageCache.placeholderIcon()
+            rowBuilder.addItem(
+                Row.Builder()
+                    .setTitle(artist.displayName)
+                    .setImage(icon, Row.IMAGE_TYPE_SMALL)
+                    .setOnClickListener {
+                        push(TracksScreen(carContext, repository, playbackClient, artist))
+                    }
+                    .build()
+            )
+        }
+        return rowBuilder.build()
     }
 
     /** Build a single grid section containing all artist items. */
