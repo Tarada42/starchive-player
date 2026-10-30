@@ -44,14 +44,11 @@ class FavoriteArtistsScreen(
             }
         })
         screenScope.launch {
-            val favoriteIds = withContext(Dispatchers.IO) {
+            val (favoriteIds, all) = withContext(Dispatchers.IO) {
                 if (repository.artists.value.isEmpty()) repository.loadArtists()
-                repository.favoriteArtists.first()
-            }
-            val all = withContext(Dispatchers.IO) {
-                // Ensure the artist roster is loaded before resolving ids.
-                if (repository.artists.value.isEmpty()) repository.loadArtists()
-                repository.artists.value
+                val ids = repository.favoriteArtists.first()
+                val roster = repository.artists.value
+                ids to roster
             }
             artists = all
                 .filter { it.id in favoriteIds }
