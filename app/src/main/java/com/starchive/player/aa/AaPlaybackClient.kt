@@ -1,17 +1,11 @@
 package com.starchive.player.aa
 
 import android.content.ComponentName
-import android.os.Bundle
-import android.support.v4.media.session.MediaSessionCompat
 import androidx.car.app.CarContext
-import androidx.car.app.media.MediaPlaybackManager
-import androidx.core.os.BundleCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.session.MediaController
-import androidx.media3.session.SessionCommand
-import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.starchive.player.data.Artist
@@ -20,7 +14,13 @@ import com.starchive.player.playback.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/** Connects the Android Auto module to the single phone [PlaybackService] MediaSession. */
+/**
+ * Connects the Android Auto module to the single phone [PlaybackService] MediaSession.
+ *
+ * This deliberately does NOT register a media-playback token with the host. The previous
+ * token/custom-command path repeatedly produced "Could not load your selection" on this
+ * app/host; the proven player surface is the plain [ListTemplate] in [PlayerScreen].
+ */
 class AaPlaybackClient(
     private val carContext: CarContext,
     private val scope: CoroutineScope,
@@ -28,7 +28,6 @@ class AaPlaybackClient(
     private var controller: MediaController? = null
     private var pending: PendingPlayback? = null
     private var connectionFuture: ListenableFuture<MediaController>? = null
-    private var mediaTokenRegistered = false
 
     /** Connects asynchronously; any play call before connection is queued and played once ready. */
     fun connect() {
@@ -39,7 +38,6 @@ class AaPlaybackClient(
         future.addListener({
             val c = runCatching { future.get() }.getOrNull() ?: return@addListener
             controller = c
-            registerMediaPlaybackToken(c)
             when (val p = pending) {
                 is PendingPlayback.Track -> play(p.track)
                 is PendingPlayback.Live -> playLive(p.artist, p.url, p.mimeType, p.qualityLabel)
@@ -100,26 +98,11 @@ class AaPlaybackClient(
         controller?.stop()
     }
 
-    private fun registerMediaPlaybackToken(controller: MediaController) {
-        if (mediaTokenRegistered) return
-        val command = SessionCommand(COMMAND_GET_PLATFORM_TOKEN, Bundle.EMPTY)
-        controller.sendCustomCommand(command, Bundle.EMPTY).let { future ->
-            future.addListener({
-                val result = runCatching { future.get() }.getOrNull() ?: return@addListener
-                if (result.resultCode != SessionResult.RESULT_SUCCESS) return@addListener
-                val platformToken = BundleCompat.getParcelable(
-                    result.extras,
-                    EXTRA_PLATFORM_TOKEN,
-                    android.media.session.MediaSession.Token::class.java,
-                ) ?: return@addListener
-                val compatToken = MediaSessionCompat.Token.fromToken(platformToken)
-                val manager = carContext.getCarService(CarContext.MEDIA_PLAYBACK_SERVICE) as MediaPlaybackManager
-                manager.registerMediaPlaybackToken(compatToken)
-                mediaTokenRegistered = true
-            }, { runnable -> scope.launch { runnable.run() } })
-        }
-    }
-
+    /**
+     * Command/action names retained for backward compatibility with [PlaybackService], which
+     * still handles the token request if a host ever sends it. The AA module no longer initiates
+     * that exchange.
+     */
     companion object {
         const val COMMAND_GET_PLATFORM_TOKEN = "com.starchive.player.aa.GET_PLATFORM_TOKEN"
         const val EXTRA_PLATFORM_TOKEN = "com.starchive.player.aa.EXTRA_PLATFORM_TOKEN"

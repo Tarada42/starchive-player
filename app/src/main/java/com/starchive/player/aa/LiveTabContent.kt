@@ -2,14 +2,10 @@ package com.starchive.player.aa
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
-import androidx.car.app.model.Action
-import androidx.car.app.model.Header
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
 import com.starchive.player.R
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
@@ -20,26 +16,27 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Flat list of currently-live DJs. Tapping a DJ opens the quality picker. */
-class LiveScreen(
-    carContext: CarContext,
+/**
+ * Live tab content for the root TabTemplate.
+ *
+ * Returns a bare [ListTemplate] with no header (headers inside [androidx.car.app.model.TabContents]
+ * are ignored by the host). Tapping a live DJ pushes the quality picker.
+ */
+class LiveTabContent(
+    private val carContext: CarContext,
     private val repository: Repository,
     private val imageCache: AaImageCache,
     private val playbackClient: AaPlaybackClient,
-) : Screen(carContext) {
-
+    private val push: (Screen) -> Unit,
+    private val onInvalidate: () -> Unit,
+) {
     private var liveArtists: List<Artist> = emptyList()
     private var loaded = false
 
-    private val screenScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     init {
-        lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onDestroy(owner: LifecycleOwner) {
-                screenScope.cancel()
-            }
-        })
-        screenScope.launch {
+        scope.launch {
             // Network I/O (live.streambox.space + optional avatar fetch) must run off Main.
             withContext(Dispatchers.IO) { repository.loadLive() }
             liveArtists = repository.liveArtists.value
@@ -47,20 +44,15 @@ class LiveScreen(
                 liveArtists.mapNotNull { artist ->
                     artist.bestImageUrl?.let { url -> AaImageRequest(artist.id, url) }
                 }
-            ) { invalidate() }
+            ) { onInvalidate() }
             loaded = true
-            invalidate()
+            onInvalidate()
         }
     }
 
-    override fun onGetTemplate(): Template {
+    fun template(): Template {
         if (!loaded) {
             return ListTemplate.Builder()
-                .setHeader(
-                    Header.Builder()
-                        .setTitle(carContext.getString(R.string.aa_live_now))
-                        .build()
-                )
                 .setLoading(true)
                 .build()
         }
@@ -74,12 +66,6 @@ class LiveScreen(
                 )
                 .build()
             return ListTemplate.Builder()
-                .setHeader(
-                    Header.Builder()
-                        .setTitle(carContext.getString(R.string.aa_live_now))
-                        .setStartHeaderAction(Action.BACK)
-                        .build()
-                )
                 .setSingleList(list)
                 .build()
         }
@@ -92,22 +78,18 @@ class LiveScreen(
                     .setTitle(artist.displayName)
                     .setImage(icon, Row.IMAGE_TYPE_LARGE)
                     .setOnClickListener {
-                        screenManager.push(
-                            LiveQualityScreen(carContext, repository, playbackClient, artist)
-                        )
+                        push(LiveQualityScreen(carContext, repository, playbackClient, artist))
                     }
                     .build()
             )
         }
 
         return ListTemplate.Builder()
-            .setHeader(
-                Header.Builder()
-                    .setTitle(carContext.getString(R.string.aa_live_now))
-                    .setStartHeaderAction(Action.BACK)
-                    .build()
-            )
             .setSingleList(listBuilder.build())
             .build()
+    }
+
+    fun onDestroy() {
+        scope.cancel()
     }
 }

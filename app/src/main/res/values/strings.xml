@@ -7,6 +7,9 @@
     <string name="aa_favorite_artists">Favorite Artists</string>
     <string name="aa_favorite_tracks">Favorite Tracks</string>
     <string name="aa_live_now">Live now</string>
+    <string name="aa_tab_artists">Artists</string>
+    <string name="aa_tab_live">Live</string>
+    <string name="aa_tab_favorites">Favorites</string>
     <string name="aa_live_empty">No DJs are live right now</string>
     <string name="aa_favorite_artists_empty">No favorite artists yet</string>
     <string name="aa_favorite_tracks_empty">No favorite tracks yet</string>
@@ -17,6 +20,8 @@
     <string name="aa_live_quality_low_label">Low</string>
     <string name="aa_sort_date">Date</string>
     <string name="aa_sort_name">Name</string>
+    <string name="aa_sort_by">Sort by %1$s</string>
+    <string name="aa_sort_order">Order %1$s</string>
     <string name="aa_now_playing">Now Playing</string>
     <string name="aa_seek_back">-10s</string>
     <string name="aa_seek_forward">+10s</string>

@@ -78,13 +78,8 @@ dependencies {
     implementation("androidx.media3:media3-cast:1.4.1")
     implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
 
-    // Android Auto — Car App Library templates (MEDIA category + playback template need API 8)
+    // Android Auto — Car App Library templates (MEDIA category; minCarApiLevel 8)
     implementation("androidx.car.app:app:1.8.0-rc01")
-
-    // androidx.media is deprecated but CAL's MediaPlaybackManager still needs the
-    // MediaSessionCompat.Token it provides. Version must exist on Google Maven (1.7.1 is the
-    // latest stable; 1.6.0 does NOT exist and fails to resolve).
-    implementation("androidx.media:media:1.7.1")
 
     // Bridges suspend functions to ListenableFuture for the MediaLibrarySession callbacks
     // that Android Auto / the Media3 framework invoke.
