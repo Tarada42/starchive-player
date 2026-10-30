@@ -6,4 +6,6 @@
     <string name="aa_artists">Artists</string>
     <string name="aa_sort_date">Date</string>
     <string name="aa_sort_name">Name</string>
+    <string name="aa_now_playing">Now Playing</string>
+    <string name="aa_stop">Stop</string>
 </resources>

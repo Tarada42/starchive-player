@@ -81,6 +81,10 @@ dependencies {
     // Android Auto — Car App Library templates (MEDIA category + playback template need API 8)
     implementation("androidx.car.app:app:1.8.0-rc01")
 
+    // androidx.media is pulled in transitively by the Car App Library, but MediaSessionCompat
+    // is used directly for registering the shared MediaSession token with AA, so pin it.
+    implementation("androidx.media:media:1.6.0")
+
     // Bridges suspend functions to ListenableFuture for the MediaLibrarySession callbacks
     // that Android Auto / the Media3 framework invoke.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.8.1")

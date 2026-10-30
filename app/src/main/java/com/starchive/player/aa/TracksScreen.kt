@@ -65,7 +65,10 @@ class TracksScreen(
             listBuilder.addItem(
                 Row.Builder()
                     .setTitle(track.title)
-                    .setOnClickListener { playbackClient.play(track) }
+                    .setOnClickListener {
+                        playbackClient.play(track)
+                        screenManager.push(PlayerScreen(carContext, playbackClient))
+                    }
                     .build()
             )
         }

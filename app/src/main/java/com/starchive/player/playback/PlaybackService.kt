@@ -2,6 +2,7 @@ package com.starchive.player.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Bundle
 import androidx.media3.cast.CastPlayer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -11,12 +12,17 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.MediaSessionService
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
+import com.google.common.util.concurrent.Futures
 import com.starchive.player.MainActivity
 import com.starchive.player.StArchiveApp
+import com.starchive.player.aa.AaPlaybackClient
+import com.starchive.player.aa.AaPlayerWrapper
 import com.starchive.player.data.Repository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,14 +31,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Phone-only background playback service (Media3 MediaSessionService).
+ * Background playback service (Media3 MediaSessionService).
  * Provides:
  *  - a MediaSession so playback continues with the screen off,
  *  - lock-screen / notification transport controls,
+ *  - the shared session that Android Auto connects to,
  *  - and phone-only Google Cast forwarding.
  *
- * Android Auto support has been removed entirely: no MediaLibraryService
- * browse tree, no automotive declaration, no AA-specific player commands.
+ * The single ExoPlayer instance is optionally wrapped by [AaPlayerWrapper] to provide
+ * the 10-second seek increments and Stop behavior required by the Android Auto module.
  */
 @UnstableApi
 class PlaybackService : MediaSessionService() {
@@ -74,8 +81,11 @@ class PlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
-        player = exoPlayer
-        localPlayer = exoPlayer
+        val wrappedPlayer = AaPlayerWrapper(exoPlayer) {
+            serviceScope.launch { repository.clearLastPlayback() }
+        }
+        player = wrappedPlayer
+        localPlayer = wrappedPlayer
 
         // Tapping the notification body (anywhere except the action buttons) opens and
         // focuses the app, directly on the Player screen for the now-playing track.
@@ -90,8 +100,9 @@ class PlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        mediaSession = MediaSession.Builder(this, exoPlayer)
+        mediaSession = MediaSession.Builder(this, wrappedPlayer)
             .setSessionActivity(openAppIntent!!)
+            .setCallback(mediaSessionCallback)
             .build()
 
         // Google Cast (PHONE ONLY). CastContext init can fail on devices without Play
@@ -117,6 +128,42 @@ class PlaybackService : MediaSessionService() {
     // Explicitly typed listener reference so Kotlin can resolve the generic class
     // parameter for the add/remove listener calls below.
     private val typedCastSessionListener: SessionManagerListener<CastSession> = castSessionListener
+
+    // --- Android Auto session callback ---
+
+    /**
+     * Exposes the platform MediaSession token to the Android Auto module so it can register
+     * the token with CarAppLibrary's MediaPlaybackManager. This is the standard CAL 1.8+
+     * integration path for Media3-based sessions.
+     */
+    private val mediaSessionCallback = object : MediaSession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult {
+            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                .add(SessionCommand(AaPlaybackClient.COMMAND_GET_PLATFORM_TOKEN, Bundle.EMPTY))
+                .build()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(sessionCommands)
+                .build()
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction == AaPlaybackClient.COMMAND_GET_PLATFORM_TOKEN) {
+                val extras = Bundle().apply {
+                    putParcelable(AaPlaybackClient.EXTRA_PLATFORM_TOKEN, session.platformToken)
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+        }
+    }
 
     /** Move the current queue/position from the local player onto a new CastPlayer. */
     private fun switchToCast() {
@@ -165,6 +212,7 @@ class PlaybackService : MediaSessionService() {
         mediaSession?.release()
         mediaSession = MediaSession.Builder(this, p)
             .setSessionActivity(openAppIntent!!)
+            .setCallback(mediaSessionCallback)
             .build()
     }
 
