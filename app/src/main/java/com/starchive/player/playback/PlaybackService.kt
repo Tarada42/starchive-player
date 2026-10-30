@@ -19,6 +19,7 @@ import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
 import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import com.starchive.player.MainActivity
 import com.starchive.player.StArchiveApp
 import com.starchive.player.aa.AaPlaybackClient
