@@ -10,6 +10,10 @@ import androidx.car.app.model.Template
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /** Single-level track list for an artist. Tapping a track starts playback via the shared MediaSession. */
@@ -23,8 +27,15 @@ class TracksScreen(
     private var tracks: List<Track> = emptyList()
     private var loaded = false
 
+    private val screenScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    override fun onDestroy() {
+        screenScope.cancel()
+        super.onDestroy()
+    }
+
     init {
-        lifecycleScope.launch {
+        screenScope.launch {
             tracks = repository.tracks(artist)
             loaded = true
             invalidate()

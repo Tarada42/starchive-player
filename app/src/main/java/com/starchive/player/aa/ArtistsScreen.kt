@@ -11,6 +11,10 @@ import androidx.car.app.model.Template
 import com.starchive.player.R
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /** Flat, newest-first artist list with sort controls. Tapping an artist opens its tracks. */
@@ -26,8 +30,15 @@ class ArtistsScreen(
     private var ascending = false
     private var loaded = false
 
+    private val screenScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    override fun onDestroy() {
+        screenScope.cancel()
+        super.onDestroy()
+    }
+
     init {
-        lifecycleScope.launch {
+        screenScope.launch {
             repository.loadArtists()
             repository.loadLatestDates()
             artists = applySort(repository.artists.value)
