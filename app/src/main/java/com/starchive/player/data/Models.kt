@@ -25,4 +25,10 @@ data class Track(
     val url: String,
     val thumbnailUrl: String?,
     val dateMillis: Long,    // parsed from the file name, for sorting
+    /**
+     * Optional MIME type override. Used for live restreams so the High (MP3)
+     * and Low (Ogg) mounts are presented correctly to both ExoPlayer and Cast.
+     * Archive tracks leave this null and default to [androidx.media3.common.MimeTypes.AUDIO_MPEG].
+     */
+    val mimeType: String? = null,
 )

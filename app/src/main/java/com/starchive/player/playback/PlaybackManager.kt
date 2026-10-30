@@ -148,17 +148,12 @@ fun Track.toMediaItem(): MediaItem {
         .setIsBrowsable(false)
         .setIsPlayable(true)
         .build()
-    val builder = MediaItem.Builder()
+    return MediaItem.Builder()
         .setUri(url)
         .setMediaId(id)
-        .setMimeType(MimeTypes.AUDIO_MPEG)
+        .setMimeType(mimeType ?: MimeTypes.AUDIO_MPEG)
         .setMediaMetadata(metadata)
-    if (id.startsWith("live-")) {
-        // Phone UI uses the high-quality MP3 mount by default; low/high choice is
-        // handled by the quality dialog before building the Track.
-        builder.setMimeType(MimeTypes.AUDIO_MPEG)
-    }
-    return builder.build()
+        .build()
 }
 
 /**

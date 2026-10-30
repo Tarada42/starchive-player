@@ -194,14 +194,17 @@ class PlaybackService : MediaSessionService() {
         isCasting = false
     }
 
-    /** Copy media items + current index/position/play state between players. */
+    /** Copy media items + current index/position/play state between players.
+     *  Live streams have no meaningful fixed start position, so we resume them at 0. */
     private fun transferPlaybackState(from: Player, to: Player) {
         val items = (0 until from.mediaItemCount).map { from.getMediaItemAt(it) }
         if (items.isNotEmpty()) {
+            val isLive = from.currentMediaItem?.mediaId?.startsWith("live-") == true
+            val startPositionMs = if (isLive) 0L else from.currentPosition.coerceAtLeast(0L)
             to.setMediaItems(
                 items,
                 from.currentMediaItemIndex.coerceAtLeast(0),
-                from.currentPosition.coerceAtLeast(0L),
+                startPositionMs,
             )
         }
         to.playWhenReady = from.playWhenReady

@@ -34,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import androidx.media3.common.MimeTypes
 import com.starchive.player.MainActivity
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Track
@@ -133,6 +134,7 @@ fun AppNav(
                         url = viewModel.liveStreamUrlHigh(artist.id),
                         thumbnailUrl = artist.bestImageUrl,
                         dateMillis = System.currentTimeMillis(),
+                        mimeType = MimeTypes.AUDIO_MPEG,
                     )
                     manager.playTrack(liveTrack)
                     liveQualityArtist = null
@@ -149,6 +151,7 @@ fun AppNav(
                         url = viewModel.liveStreamUrlLow(artist.id),
                         thumbnailUrl = artist.bestImageUrl,
                         dateMillis = System.currentTimeMillis(),
+                        mimeType = MimeTypes.AUDIO_OGG,
                     )
                     manager.playTrack(liveTrack)
                     liveQualityArtist = null
@@ -443,7 +446,6 @@ fun AppNav(
                     isFavorite = isFav,
                     positionMs = position,
                     durationMs = duration,
-                    isLive = current?.id?.startsWith("live-") == true,
                     onBack = { navController.popBackStack() },
                     onTogglePlay = { manager.togglePlayPause() },
                     onSeek = { ms -> manager.seekTo(ms) },

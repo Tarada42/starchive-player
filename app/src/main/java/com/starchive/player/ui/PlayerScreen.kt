@@ -66,7 +66,6 @@ fun PlayerScreen(
     isFavorite: Boolean,
     positionMs: Long,
     durationMs: Long,
-    isLive: Boolean = false,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -244,18 +243,17 @@ fun PlayerScreen(
                         )
                     }
                     // Standard Cast button: shows the receiver list when Cast devices are
-                    // available, otherwise the standard no-target state. Hidden for live
-                    // streams because the default Cast receiver cannot play Icecast/ICY.
-                    if (!isLive) {
-                        AndroidView(
-                            factory = { ctx ->
-                                MediaRouteButton(ctx).apply {
-                                    CastButtonFactory.setUpMediaRouteButton(ctx, this)
-                                }
-                            },
-                            modifier = Modifier.size(56.dp),
-                        )
-                    }
+                    // available, otherwise the standard no-target state. The default Cast
+                    // receiver can play both Icecast MP3 and Ogg live mounts, so the button
+                    // is shown for live streams as well as archive tracks (phone only).
+                    AndroidView(
+                        factory = { ctx ->
+                            MediaRouteButton(ctx).apply {
+                                CastButtonFactory.setUpMediaRouteButton(ctx, this)
+                            }
+                        },
+                        modifier = Modifier.size(56.dp),
+                    )
                     IconButton(onClick = onShare, modifier = Modifier.size(56.dp)) {
                         Icon(
                             imageVector = Icons.Filled.Share,
