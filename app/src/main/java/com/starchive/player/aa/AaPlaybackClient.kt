@@ -12,7 +12,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
-import androidx.media.session.MediaSessionCompat
+import android.support.v4.media.session.MediaSessionCompat
 import com.google.common.util.concurrent.ListenableFuture
 import com.starchive.player.data.Track
 import com.starchive.player.playback.PlaybackService
