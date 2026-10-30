@@ -4,16 +4,21 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
 import androidx.car.app.model.Header
+import androidx.car.app.model.ItemList
+import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.car.app.media.model.MediaPlaybackTemplate
 import com.starchive.player.R
 
 /**
- * Android Auto Now Playing screen.
+ * Android Auto player controls.
  *
- * The playback controls (play/pause, 10 s seek, stop) are rendered by the AA host from the
- * registered shared MediaSession. A Stop header action is provided as a guaranteed,
- * always-visible entry point because the host's primary control surface varies by OEM.
+ * Rendered as a plain [ListTemplate] with explicit transport actions wired to the shared
+ * PlaybackService MediaSession through [AaPlaybackClient]. This deliberately avoids the CAL
+ * MediaPlaybackTemplate, whose host-side Now-Playing body requires a fully drivable
+ * MediaBrowserService media controller (binding that repeatedly produced the host's
+ * "Could not load your selection" timeout). Here every control is a normal template action,
+ * so it works on any host with no token/binder coupling.
  */
 class PlayerScreen(
     carContext: CarContext,
@@ -21,19 +26,41 @@ class PlayerScreen(
 ) : Screen(carContext) {
 
     override fun onGetTemplate(): Template {
-        val stopAction = Action.Builder()
-            .setTitle(carContext.getString(R.string.aa_stop))
-            .setOnClickListener { playbackClient.stop() }
+        val list = ItemList.Builder()
+            .addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_seek_back))
+                    .setOnClickListener { playbackClient.seekBy(-10_000L) }
+                    .build()
+            )
+            .addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_seek_forward))
+                    .setOnClickListener { playbackClient.seekBy(10_000L) }
+                    .build()
+            )
+            .addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_play_pause))
+                    .setOnClickListener { playbackClient.togglePlayPause() }
+                    .build()
+            )
+            .addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_stop))
+                    .setOnClickListener { playbackClient.stop() }
+                    .build()
+            )
             .build()
 
         val header = Header.Builder()
             .setTitle(carContext.getString(R.string.aa_now_playing))
             .setStartHeaderAction(Action.BACK)
-            .addEndHeaderAction(stopAction)
             .build()
 
-        return MediaPlaybackTemplate.Builder()
+        return ListTemplate.Builder()
             .setHeader(header)
+            .setSingleList(list)
             .build()
     }
 }

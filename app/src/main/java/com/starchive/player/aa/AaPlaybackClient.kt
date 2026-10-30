@@ -58,6 +58,20 @@ class AaPlaybackClient(
         c.play()
     }
 
+    /** Toggle play/pause on the shared session. */
+    fun togglePlayPause() {
+        val c = controller ?: return
+        if (c.isPlaying) c.pause() else c.play()
+    }
+
+    /** Seek exactly [millis] from the current position (10_000 = 10 s). Clamped to the media. */
+    fun seekBy(millis: Long) {
+        val c = controller ?: return
+        val target = (c.currentPosition + millis).coerceAtLeast(0L)
+        val bounded = c.duration.takeIf { it > 0 }?.let { target.coerceAtMost(it) } ?: target
+        c.seekTo(bounded)
+    }
+
     /** Stop playback. The shared player wrapper implements the live-vs-normal distinction. */
     fun stop() {
         controller?.stop()
