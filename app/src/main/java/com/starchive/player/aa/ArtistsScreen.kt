@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Flat, newest-first artist list with sort controls. Tapping an artist opens its tracks. */
 class ArtistsScreen(
@@ -41,8 +42,12 @@ class ArtistsScreen(
             }
         })
         screenScope.launch {
-            repository.loadArtists()
-            repository.loadLatestDates()
+            // Repository I/O (scrape, per-artist track scans) must run off the Main dispatcher.
+            // Doing it on Main froze the AA UI here, which delayed tap-to-play for ~a minute.
+            withContext(Dispatchers.IO) {
+                repository.loadArtists()
+                repository.loadLatestDates()
+            }
             artists = applySort(repository.artists.value)
             imageCache.preload(
                 artists.mapNotNull { artist ->

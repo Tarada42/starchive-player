@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Single-level track list for an artist. Tapping a track starts playback via the shared MediaSession. */
 class TracksScreen(
@@ -39,7 +40,9 @@ class TracksScreen(
             }
         })
         screenScope.launch {
-            tracks = repository.tracks(artist)
+            // Off-Main: repository track scan is network I/O; on Main it froze the
+            // AA UI and delayed tap-to-play playback.
+            tracks = withContext(Dispatchers.IO) { repository.tracks(artist) }
             loaded = true
             invalidate()
         }
