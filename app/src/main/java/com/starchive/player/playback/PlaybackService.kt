@@ -370,21 +370,21 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: List<MediaItem>,
             startIndex: Int,
             startPositionMs: Long,
-        ): ListenableFuture<MediaSession.MediaItemsToSet> = serviceScope.future {
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = serviceScope.future {
             if (mediaItems.size == 1 && mediaItems[0].mediaId.startsWith(ACTION_PREFIX)) {
                 handleSortAction(mediaItems[0].mediaId)
                 val p = player
                 if (p != null && p.mediaItemCount > 0) {
                     val items = (0 until p.mediaItemCount).map { p.getMediaItemAt(it) }
-                    MediaSession.MediaItemsToSet(items, p.currentMediaItemIndex, p.currentPosition)
+                    MediaSession.MediaItemsWithStartPosition(items, p.currentMediaItemIndex, p.currentPosition)
                 } else {
-                    MediaSession.MediaItemsToSet(emptyList(), C.INDEX_UNSET, C.TIME_UNSET)
+                    MediaSession.MediaItemsWithStartPosition(emptyList(), C.INDEX_UNSET, C.TIME_UNSET)
                 }
             } else {
                 val resolved = mediaItems.flatMap { resolveForPlayback(it) }
                 val safeIndex = if (resolved.isEmpty()) C.INDEX_UNSET
                     else startIndex.coerceIn(0, resolved.size - 1)
-                MediaSession.MediaItemsToSet(resolved, safeIndex, startPositionMs)
+                MediaSession.MediaItemsWithStartPosition(resolved, safeIndex, startPositionMs)
             }
         }
     }
