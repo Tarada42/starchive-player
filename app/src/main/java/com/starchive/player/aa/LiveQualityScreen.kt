@@ -36,7 +36,7 @@ class LiveQualityScreen(
                             MimeTypes.AUDIO_MPEG,
                             carContext.getString(R.string.aa_live_quality_high_label),
                         )
-                        screenManager.push(PlayerScreen(carContext, playbackClient))
+                        screenManager.push(PlayerScreen(carContext, playbackClient, isLive = true))
                     }
                     .build()
             )
@@ -50,7 +50,7 @@ class LiveQualityScreen(
                             MimeTypes.AUDIO_OGG,
                             carContext.getString(R.string.aa_live_quality_low_label),
                         )
-                        screenManager.push(PlayerScreen(carContext, playbackClient))
+                        screenManager.push(PlayerScreen(carContext, playbackClient, isLive = true))
                     }
                     .build()
             )

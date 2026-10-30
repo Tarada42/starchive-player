@@ -23,22 +23,29 @@ import com.starchive.player.R
 class PlayerScreen(
     carContext: CarContext,
     private val playbackClient: AaPlaybackClient,
+    private val isLive: Boolean = false,
 ) : Screen(carContext) {
 
     override fun onGetTemplate(): Template {
-        val list = ItemList.Builder()
-            .addItem(
-                Row.Builder()
-                    .setTitle(carContext.getString(R.string.aa_seek_back))
-                    .setOnClickListener { playbackClient.seekBy(-10_000L) }
-                    .build()
-            )
-            .addItem(
-                Row.Builder()
-                    .setTitle(carContext.getString(R.string.aa_seek_forward))
-                    .setOnClickListener { playbackClient.seekBy(10_000L) }
-                    .build()
-            )
+        // Seek rows make no sense on a live stream (no scrubbing a live restream),
+        // so they render only for regular on-demand tracks.
+        val listBuilder = ItemList.Builder()
+        if (!isLive) {
+            listBuilder
+                .addItem(
+                    Row.Builder()
+                        .setTitle(carContext.getString(R.string.aa_seek_back))
+                        .setOnClickListener { playbackClient.seekBy(-10_000L) }
+                        .build()
+                )
+                .addItem(
+                    Row.Builder()
+                        .setTitle(carContext.getString(R.string.aa_seek_forward))
+                        .setOnClickListener { playbackClient.seekBy(10_000L) }
+                        .build()
+                )
+        }
+        listBuilder
             .addItem(
                 Row.Builder()
                     .setTitle(carContext.getString(R.string.aa_play_pause))
@@ -51,7 +58,7 @@ class PlayerScreen(
                     .setOnClickListener { playbackClient.stop() }
                     .build()
             )
-            .build()
+        val list = listBuilder.build()
 
         val header = Header.Builder()
             .setTitle(carContext.getString(R.string.aa_now_playing))
