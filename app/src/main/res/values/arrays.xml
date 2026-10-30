@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string-array name="aa_hosts_allowlist">
-        <item>com.google.android.projection.gearhead</item>
-    </string-array>
+    <!-- Host allow-list entries are NOT used here: StArchiveCarAppService uses
+         HostValidator.ALLOW_ALL_HOSTS_VALIDATOR for debuggable builds and the
+         library's built-in hosts_allowlist_sample for release. -->
 </resources>
