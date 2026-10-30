@@ -1,0 +1,112 @@
+package com.starchive.player.aa
+
+import androidx.car.app.CarContext
+import androidx.car.app.Screen
+import androidx.car.app.model.Action
+import androidx.car.app.model.ActionStrip
+import androidx.car.app.model.ItemList
+import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.Row
+import androidx.car.app.model.Template
+import com.starchive.player.R
+import com.starchive.player.data.Artist
+import com.starchive.player.data.Repository
+import kotlinx.coroutines.launch
+
+/** Flat, newest-first artist list with sort controls. Tapping an artist opens its tracks. */
+class ArtistsScreen(
+    carContext: CarContext,
+    private val repository: Repository,
+    private val imageCache: AaImageCache,
+    private val playbackClient: AaPlaybackClient,
+) : Screen(carContext) {
+
+    private var artists: List<Artist> = emptyList()
+    private var sortMode = SortMode.DATE
+    private var ascending = false
+    private var loaded = false
+
+    init {
+        lifecycleScope.launch {
+            repository.loadArtists()
+            repository.loadLatestDates()
+            artists = applySort(repository.artists.value)
+            imageCache.preload(
+                artists.mapNotNull { artist ->
+                    artist.bestImageUrl?.let { url -> AaImageRequest(artist.id, url) }
+                }
+            ) { invalidate() }
+            loaded = true
+            invalidate()
+        }
+    }
+
+    override fun onGetTemplate(): Template {
+        if (!loaded) {
+            return ListTemplate.Builder()
+                .setTitle(carContext.getString(R.string.aa_artists))
+                .setLoading(true)
+                .build()
+        }
+
+        val listBuilder = ItemList.Builder()
+        artists.forEach { artist ->
+            val icon = imageCache.iconFor(artist.id) ?: imageCache.placeholderIcon()
+            listBuilder.addItem(
+                Row.Builder()
+                    .setTitle(artist.displayName)
+                    .setImage(icon, Row.IMAGE_TYPE_LARGE)
+                    .setOnClickListener {
+                        screenManager.push(
+                            TracksScreen(carContext, repository, playbackClient, artist)
+                        )
+                    }
+                    .build()
+            )
+        }
+
+        val sortAction = Action.Builder()
+            .setTitle(carContext.getString(sortMode.labelRes))
+            .setOnClickListener {
+                sortMode = sortMode.next()
+                ascending = when (sortMode) {
+                    SortMode.DATE -> false // newest first
+                    SortMode.NAME -> true  // A-Z
+                }
+                artists = applySort(repository.artists.value)
+                invalidate()
+            }
+            .build()
+
+        val directionAction = Action.Builder()
+            .setTitle(if (ascending) "▲" else "▼")
+            .setOnClickListener {
+                ascending = !ascending
+                artists = applySort(repository.artists.value)
+                invalidate()
+            }
+            .build()
+
+        val actionStrip = ActionStrip.Builder()
+            .addAction(sortAction)
+            .addAction(directionAction)
+            .build()
+
+        return ListTemplate.Builder()
+            .setTitle(carContext.getString(R.string.aa_artists))
+            .setHeaderAction(Action.BACK)
+            .setActionStrip(actionStrip)
+            .setSingleList(listBuilder.build())
+            .build()
+    }
+
+    private fun applySort(source: List<Artist>): List<Artist> {
+        val base = when (sortMode) {
+            SortMode.DATE -> source.sortedBy {
+                repository.latestDateByArtist.value[it.id] ?: 0L
+            }
+            SortMode.NAME -> source.sortedBy { it.displayName.lowercase() }
+        }
+        return if (ascending) base else base.reversed()
+    }
+}

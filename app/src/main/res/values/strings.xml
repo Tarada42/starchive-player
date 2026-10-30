@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">STArchive Player</string>
+
+    <!-- Android Auto -->
+    <string name="aa_home_title">STArchive</string>
+    <string name="aa_artists">Artists</string>
+    <string name="aa_sort_date">Date</string>
+    <string name="aa_sort_name">Name</string>
 </resources>
