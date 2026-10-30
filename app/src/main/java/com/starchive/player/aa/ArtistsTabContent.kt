@@ -2,14 +2,17 @@ package com.starchive.player.aa
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.annotations.RequiresCarApi
 import androidx.car.app.model.Action
 import androidx.car.app.model.CarColor
 import androidx.car.app.model.CarIcon
-import androidx.car.app.model.ItemList
-import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.GridItem
+import androidx.car.app.model.GridSection
 import androidx.car.app.model.Row
-import androidx.core.graphics.drawable.IconCompat
+import androidx.car.app.model.RowSection
+import androidx.car.app.model.SectionedItemTemplate
 import androidx.car.app.model.Template
+import androidx.core.graphics.drawable.IconCompat
 import com.starchive.player.R
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
@@ -24,10 +27,13 @@ import kotlinx.coroutines.withContext
 /**
  * Artists tab content for the root TabTemplate.
  *
- * Returns a bare [ListTemplate] with no header (headers inside [androidx.car.app.model.TabContents]
- * are ignored by the host). Sort controls are rendered as the first two rows so the user can still
- * toggle Date/Name and direction. Tapping an artist pushes the single-level track list.
+ * Returns a bare [SectionedItemTemplate] with no header (headers inside
+ * [androidx.car.app.model.TabContents] are ignored by the host). The artists are rendered as a
+ * phone-like grid of circular avatar images with their full names underneath. Sort controls are
+ * rendered as icon-only template-scoped actions to comply with the media-app TabTemplate action
+ * rules. Tapping an artist pushes the single-level track list.
  */
+@RequiresCarApi(8)
 class ArtistsTabContent(
     private val carContext: CarContext,
     private val repository: Repository,
@@ -70,19 +76,72 @@ class ArtistsTabContent(
 
     fun template(): Template {
         if (!loaded) {
-            return ListTemplate.Builder()
+            return SectionedItemTemplate.Builder()
                 .setLoading(true)
                 .build()
         }
 
-        val listBuilder = ItemList.Builder()
+        val builder = SectionedItemTemplate.Builder()
+
+        if (artists.isEmpty()) {
+            builder.addSection(createEmptySection())
+        } else {
+            builder.addSection(createGridSection())
+        }
+
+        // Sort controls as template-scoped actions so the host renders them as BUTTONS.
+        // IMPORTANT: inside a media-app (MEDIA_TEMPLATES) TabTemplate, template actions may NOT
+        // carry a custom title ("Action list exceeded max number of 0 actions with custom
+        // titles" crash). So these are ICON-ONLY: a required CarIcon + CarColor, no setTitle.
+        builder.addAction(
+            Action.Builder()
+                .setIcon(icon(R.drawable.aa_ic_sort))
+                .setBackgroundColor(CarColor.BLUE)
+                .setOnClickListener {
+                    sortMode = sortMode.next()
+                    ascending = when (sortMode) {
+                        SortMode.DATE -> false // newest first
+                        SortMode.NAME -> true  // A-Z
+                    }
+                    scope.launch { sortDataStore.save(sortMode, ascending) }
+                    artists = applySort(repository.artists.value)
+                    onInvalidate()
+                }
+                .build()
+        )
+
+        builder.addAction(
+            Action.Builder()
+                .setIcon(icon(R.drawable.aa_ic_order))
+                .setBackgroundColor(CarColor.BLUE)
+                .setOnClickListener {
+                    ascending = !ascending
+                    scope.launch { sortDataStore.save(sortMode, ascending) }
+                    artists = applySort(repository.artists.value)
+                    onInvalidate()
+                }
+                .build()
+        )
+
+        return builder.build()
+    }
+
+    fun onDestroy() {
+        scope.cancel()
+    }
+
+    /** Build a single grid section containing all artist items. */
+    private fun createGridSection(): GridSection {
+        val gridBuilder = GridSection.Builder()
+            .setItemSize(GridSection.ITEM_SIZE_MEDIUM)
+            .setItemImageShape(GridSection.ITEM_IMAGE_SHAPE_CIRCLE)
 
         artists.forEach { artist ->
             val icon = imageCache.iconFor(artist.id) ?: imageCache.placeholderIcon()
-            listBuilder.addItem(
-                Row.Builder()
+            gridBuilder.addItem(
+                GridItem.Builder()
                     .setTitle(artist.displayName)
-                    .setImage(icon, Row.IMAGE_TYPE_LARGE)
+                    .setImage(icon)
                     .setOnClickListener {
                         push(TracksScreen(carContext, repository, playbackClient, artist))
                     }
@@ -90,45 +149,18 @@ class ArtistsTabContent(
             )
         }
 
-        // Sort controls as template-scoped actions so the host renders them as BUTTONS.
-        // IMPORTANT: inside a media-app (MEDIA_TEMPLATES) TabTemplate, template actions may NOT
-        // carry a custom title ("Action list exceeded max number of 0 actions with custom
-        // titles" crash). So these are ICON-ONLY: a required CarIcon + CarColor, no setTitle.
-        val toggleSortModeAction = Action.Builder()
-            .setIcon(icon(R.drawable.aa_ic_sort))
-            .setBackgroundColor(CarColor.BLUE)
-            .setOnClickListener {
-                sortMode = sortMode.next()
-                ascending = when (sortMode) {
-                    SortMode.DATE -> false // newest first
-                    SortMode.NAME -> true  // A-Z
-                }
-                scope.launch { sortDataStore.save(sortMode, ascending) }
-                artists = applySort(repository.artists.value)
-                onInvalidate()
-            }
-            .build()
-
-        val toggleOrderAction = Action.Builder()
-            .setIcon(icon(R.drawable.aa_ic_order))
-            .setBackgroundColor(CarColor.BLUE)
-            .setOnClickListener {
-                ascending = !ascending
-                scope.launch { sortDataStore.save(sortMode, ascending) }
-                artists = applySort(repository.artists.value)
-                onInvalidate()
-            }
-            .build()
-
-        return ListTemplate.Builder()
-            .setSingleList(listBuilder.build())
-            .addAction(toggleSortModeAction)
-            .addAction(toggleOrderAction)
-            .build()
+        return gridBuilder.build()
     }
 
-    fun onDestroy() {
-        scope.cancel()
+    /** Fallback section shown when the artist list is empty. */
+    private fun createEmptySection(): RowSection {
+        return RowSection.Builder()
+            .addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_artists_empty))
+                    .build()
+            )
+            .build()
     }
 
     /** Build a [CarIcon] from a vector drawable resource, as actions require one. */

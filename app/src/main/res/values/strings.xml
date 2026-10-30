@@ -22,6 +22,7 @@
     <string name="aa_sort_name">Name</string>
     <string name="aa_sort_by">Sort by %1$s</string>
     <string name="aa_sort_order">Order %1$s</string>
+    <string name="aa_artists_empty">No artists available</string>
     <string name="aa_now_playing">Now Playing</string>
     <string name="aa_seek_back">-10s</string>
     <string name="aa_seek_forward">+10s</string>
