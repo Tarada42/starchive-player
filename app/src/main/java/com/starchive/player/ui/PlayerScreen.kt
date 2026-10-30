@@ -21,8 +21,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay30
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -47,7 +48,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -197,7 +197,7 @@ fun PlayerScreen(
                         Icon(Icons.Filled.SkipPrevious, contentDescription = "Forrige", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = onSkipBackward, modifier = Modifier.size(52.dp)) {
-                        Icon(Icons.Filled.Replay10, contentDescription = "10 sek tilbage", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.Filled.Replay30, contentDescription = "30 sek tilbage", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                     }
                     Box(
                         modifier = Modifier
@@ -219,7 +219,7 @@ fun PlayerScreen(
                         )
                     }
                     IconButton(onClick = onSkipForward, modifier = Modifier.size(52.dp)) {
-                        Icon(painterResource(R.drawable.ic_forward_10), contentDescription = "10 sek frem", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.Filled.Forward30, contentDescription = "30 sek frem", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Filled.SkipNext, contentDescription = "Næste", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)

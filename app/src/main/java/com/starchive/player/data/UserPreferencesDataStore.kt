@@ -3,6 +3,7 @@ package com.starchive.player.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -35,6 +36,23 @@ class UserPreferencesDataStore(private val context: Context) {
     suspend fun setArtistListLayout(layout: ArtistListLayout) {
         context.userPreferencesStore.edit { prefs ->
             prefs[artistLayoutKey] = layout.key
+        }
+    }
+
+    // --- Android Auto artist sort ("NAME" / "DATE" + direction) ---
+
+    private val aaSortKey = stringPreferencesKey("aa_sort")
+    private val aaSortAscendingKey = booleanPreferencesKey("aa_sort_ascending")
+
+    /** AA artist sort preference; defaults to newest-first (DATE, descending). */
+    val aaSort: Flow<Pair<String, Boolean>> = context.userPreferencesStore.data.map { prefs ->
+        (prefs[aaSortKey] ?: "DATE") to (prefs[aaSortAscendingKey] ?: false)
+    }
+
+    suspend fun setAASort(sort: String, ascending: Boolean) {
+        context.userPreferencesStore.edit { prefs ->
+            prefs[aaSortKey] = sort
+            prefs[aaSortAscendingKey] = ascending
         }
     }
 }

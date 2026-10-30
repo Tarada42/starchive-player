@@ -239,6 +239,12 @@ class Repository(
     suspend fun setArtistListLayout(layout: ArtistListLayout) =
         userPreferencesDataStore.setArtistListLayout(layout)
 
+    // Android Auto artist sort (persisted so it survives AA reconnects)
+    val aaSort: Flow<Pair<String, Boolean>> = userPreferencesDataStore.aaSort
+
+    suspend fun setAASort(sort: String, ascending: Boolean) =
+        userPreferencesDataStore.setAASort(sort, ascending)
+
     // Playback resume state (last track/position, per-artist positions, single-artist mode)
     val lastTrackId: Flow<String?> = playbackStateDataStore.lastTrackId
     val lastArtistId: Flow<String?> = playbackStateDataStore.lastArtistId

@@ -1,9 +1,9 @@
 package com.starchive.player.playback
 
 import android.app.PendingIntent
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
+import android.os.Bundle
+import androidx.media3.cast.CastPlayer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -13,22 +13,25 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import com.google.common.collect.ImmutableList
-import com.google.common.util.concurrent.Futures
-import com.google.common.util.concurrent.ListenableFuture
-import androidx.media3.cast.CastPlayer
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import com.starchive.player.MainActivity
+import com.starchive.player.R
 import com.starchive.player.StArchiveApp
 import com.starchive.player.data.Artist
-import com.starchive.player.ui.ArtistSort
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
+import com.starchive.player.ui.ArtistSort
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,8 +44,25 @@ import kotlinx.coroutines.launch
  * Background playback service (Media3 MediaLibraryService). Provides:
  *  - a MediaSession so playback continues with the screen off,
  *  - lock-screen / notification transport controls,
- *  - and a browsable media tree (Artists / Favorites / Search History) that makes
- *    the app discoverable and controllable from Android Auto and the Assistant.
+ *  - and a flat, phone-like browsable media tree for Android Auto:
+ *
+ *   ROOT
+ *   ├── Artists              (browsable)
+ *   │   ├── [action] Sort: Date — newest first (tap for Name)
+ *   │   ├── [action] Reverse order (now descending ↓)
+ *   │   └── <artist>         (browsable) -> tracks (playable, single level)
+ *   ├── Live                 (browsable)
+ *   │   ├── <DJ> — High (MP3)  (playable)
+ *   │   └── <DJ> — Low (Ogg)   (playable)
+ *   ├── Favorite Artists     (browsable) -> artists (browsable) -> tracks
+ *   ├── Favorite Tracks      (browsable) -> tracks (playable)
+ *   └── Search History       (browsable)
+ *       └── <past query>    (browsable) -> matching tracks (playable)
+ *
+ * Sort actions are flat "action items" (the AA equivalent of the phone's sort
+ * chips): tapping one triggers a custom set-media request which the service
+ * intercepts, toggles the sort, persists it, and tells AA to re-browse.
+ * No cast functionality is exposed to Android Auto — casting is phone-only.
  */
 @UnstableApi
 class PlaybackService : MediaLibraryService() {
@@ -88,10 +108,10 @@ class PlaybackService : MediaLibraryService() {
             .build()
         // Android Auto's rewind/fast-forward buttons call seekBack()/seekForward().
         // media3 1.4.1 has no setSeekForwardIncrementMs, so we wrap the player in a
-        // ForwardingPlayer that overrides those two to use a fixed 10-second step
+        // ForwardingPlayer that overrides those two to use a fixed 30-second step
         // and explicitly advertises SEEK_BACK / SEEK_FORWARD so Android Auto shows
         // the back/forward buttons.
-        val seekPlayer = TenSecondSeekPlayer(exoPlayer)
+        val seekPlayer = ThirtySecondSeekPlayer(exoPlayer)
         player = seekPlayer
         localPlayer = seekPlayer
 
@@ -111,11 +131,26 @@ class PlaybackService : MediaLibraryService() {
         mediaLibrarySession = MediaLibrarySession.Builder(this, seekPlayer, LibrarySessionCallback())
             .setSessionActivity(openAppIntent!!)
             .build()
+        // AA player: expose a Stop button in the custom layout (tears down live
+        // streams; stops + clears normal tracks).
+        mediaLibrarySession?.setCustomLayout(listOf(STOP_BUTTON))
 
         // Google Cast (PHONE ONLY). CastContext init can fail on devices without Play
         // Services — fail soft and keep local playback fully working.
         castContext = runCatching { CastContext.getSharedInstance(this) }.getOrNull()
         castContext?.sessionManager?.addSessionManagerListener(typedCastSessionListener, CastSession::class.java)
+
+        // Restore the persisted AA sort so it survives AA reconnects.
+        serviceScope.launch {
+            runCatching {
+                val (sort, asc) = repository.aaSort.first()
+                _aaSort = runCatching { ArtistSort.valueOf(sort) }.getOrDefault(ArtistSort.DATE)
+                _aaSortAscending = asc
+            }
+        }
+        // Warm the newest-date cache in the background so DATE sorting is meaningful
+        // even when AA connects without the phone UI running.
+        serviceScope.launch { runCatching { repository.loadLatestDates() } }
     }
 
     // --- Cast session handover (phone only; Android Auto never touches this) ---
@@ -184,6 +219,7 @@ class PlaybackService : MediaLibraryService() {
         mediaLibrarySession = MediaLibrarySession.Builder(this, p, LibrarySessionCallback())
             .setSessionActivity(openAppIntent!!)
             .build()
+        mediaLibrarySession?.setCustomLayout(listOf(STOP_BUTTON))
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
@@ -212,24 +248,43 @@ class PlaybackService : MediaLibraryService() {
 
     // --- Android Auto browse tree ---
 
-    /**
-     * Implements the browsable media tree Android Auto (and the Assistant) use:
-     *
-     *   ROOT
-     *   ├── Artists              (browsable) -> sort nodes
-     *   │   ├── Sort by Name     (action node)
-     *   │   ├── Sort by Date     (action node)
-     *   ├── Live                 (browsable) -> live DJs (playable)
-     *   ├── Favorites            (browsable)
-     *   │   ├── Favorite Artists (browsable) -> tracks (playable)
-     *   │   └── Favorite Tracks  (playable)
-     *   └── Search History       (browsable)
-     *       └── <past query>    (browsable) -> matching tracks (playable)
-     *
-     * Voice actions ("play dj_td", "play favorites") arrive through [onAddMediaItems],
-     * which resolves a loosely specified request item into real, playable [MediaItem]s.
-     */
     private inner class LibrarySessionCallback : MediaLibrarySession.Callback {
+
+        /** Advertise the custom Stop command so AA can send it. */
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult =
+            MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(
+                    MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+                        .buildUpon()
+                        .add(STOP_COMMAND)
+                        .build()
+                )
+                .build()
+
+        /**
+         * Custom Stop (AA custom layout button): for live streams this tears down the
+         * Icecast connection (stop() releases the source); for normal tracks it stops
+         * and clears the active media/session state.
+         */
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction == CUSTOM_ACTION_STOP) {
+                player?.let { p ->
+                    p.stop()
+                    p.clearMediaItems()
+                }
+                serviceScope.launch { runCatching { repository.clearLastPlayback() } }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+        }
 
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
@@ -294,17 +349,66 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<List<MediaItem>> = serviceScope.future {
             mediaItems.flatMap { resolveForPlayback(it) }
         }
+
+        /**
+         * Single choke point for every "play this selection" request (browse taps,
+         * playFromMediaId, search results). Guarantees any new selection always starts
+         * and plays the new choice:
+         *
+         *  - Flat sort "action items" are intercepted here: the sort is toggled and
+         *    persisted, AA is told to re-browse, and the currently playing item is
+         *    left completely untouched (the returned MediaItemsToSet mirrors the
+         *    current playlist + position, so nothing restarts).
+         *  - Everything else is resolved into fresh, fully-populated MediaItems
+         *    (URI + MIME) via [resolveForPlayback] — never the bare mediaId-only
+         *    request item, which previously caused the legacy AA stub to fall back
+         *    to resuming the previously played track.
+         */
+        override fun onSetMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsToSet> = serviceScope.future {
+            if (mediaItems.size == 1 && mediaItems[0].mediaId.startsWith(ACTION_PREFIX)) {
+                handleSortAction(mediaItems[0].mediaId)
+                val p = player
+                if (p != null && p.mediaItemCount > 0) {
+                    val items = (0 until p.mediaItemCount).map { p.getMediaItemAt(it) }
+                    MediaSession.MediaItemsToSet(items, p.currentMediaItemIndex, p.currentPosition)
+                } else {
+                    MediaSession.MediaItemsToSet(emptyList(), C.INDEX_UNSET, C.TIME_UNSET)
+                }
+            } else {
+                val resolved = mediaItems.flatMap { resolveForPlayback(it) }
+                val safeIndex = if (resolved.isEmpty()) C.INDEX_UNSET
+                    else startIndex.coerceIn(0, resolved.size - 1)
+                MediaSession.MediaItemsToSet(resolved, safeIndex, startPositionMs)
+            }
+        }
     }
 
+    /**
+     * Always rebuilds playable items from the request's mediaId (URI + MIME included).
+     * Never returns the bare request item: legacy controllers (Android Auto) send
+     * mediaId-only items for playFromMediaId, and passing them through yields
+     * unplayable items — the session then falls back to the previously played track.
+     */
     private suspend fun resolveForPlayback(requestItem: MediaItem): List<MediaItem> {
         val mediaId = requestItem.mediaId
         val query = requestItem.requestMetadata.searchQuery
 
         return when {
-            // Live restreams carry their own playable URL/MIME; keep them as-is rather
-            // than trying to resolve against the archive (they have no track file id).
-            mediaId.startsWith(LIVE_HIGH_PREFIX) || mediaId.startsWith(LIVE_LOW_PREFIX) -> listOf(requestItem)
-            mediaId.startsWith(LIVE_PREFIX) -> listOf(requestItem)
+            // Sort actions are intercepted in onSetMediaItems; they never play.
+            mediaId.startsWith(ACTION_PREFIX) -> emptyList()
+            mediaId.startsWith(LIVE_HIGH_PREFIX) ->
+                listOf(liveQualityItem(mediaId.removePrefix(LIVE_HIGH_PREFIX), high = true))
+            mediaId.startsWith(LIVE_LOW_PREFIX) ->
+                listOf(liveQualityItem(mediaId.removePrefix(LIVE_LOW_PREFIX), high = false))
+            // Phone-built live items ("live-<artist>"): default to the HQ MP3 mount.
+            mediaId.startsWith(LIVE_PREFIX) ->
+                listOf(liveQualityItem(mediaId.removePrefix(LIVE_PREFIX), high = true))
             mediaId.startsWith(ARTIST_PREFIX) -> {
                 val artistId = mediaId.removePrefix(ARTIST_PREFIX)
                 tracksForArtistId(artistId).map { it.toMediaItem() }
@@ -323,24 +427,17 @@ class PlaybackService : MediaLibraryService() {
     private suspend fun resolveBrowsableOrPlayable(mediaId: String): MediaItem? {
         if (mediaId == ROOT_ID) return folderItem(ROOT_ID, "STArchive")
         if (mediaId == ARTISTS_ID) return folderItem(ARTISTS_ID, "Artists")
-        if (mediaId == ARTISTS_NAME_ID) return folderItem(ARTISTS_NAME_ID, "Sort by Name")
-        if (mediaId == ARTISTS_DATE_ID) return folderItem(ARTISTS_DATE_ID, "Sort by Date")
-        if (mediaId == ARTISTS_TOGGLE_ID) return folderItem(ARTISTS_TOGGLE_ID, "Reverse Order")
         if (mediaId == LIVE_ID) return folderItem(LIVE_ID, "Live")
-        if (mediaId.startsWith(LIVE_FOLDER_PREFIX)) {
-            val artistId = mediaId.removePrefix(LIVE_FOLDER_PREFIX)
-            val artist = repository.artists.value.find { it.id == artistId }
-            return artist?.toLiveFolderItem() ?: folderItem(mediaId, prettify(artistId))
-        }
+        if (mediaId == FAVORITE_ARTISTS_ID) return folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists")
+        if (mediaId == FAVORITE_TRACKS_ID) return folderItem(FAVORITE_TRACKS_ID, "Favorite Tracks")
+        if (mediaId == SEARCH_HISTORY_ID) return folderItem(SEARCH_HISTORY_ID, "Search History")
+        if (mediaId == ACTION_SORT_TOGGLE_ID) return actionItem(ACTION_SORT_TOGGLE_ID, sortToggleLabel())
+        if (mediaId == ACTION_SORT_REVERSE_ID) return actionItem(ACTION_SORT_REVERSE_ID, reverseLabel())
         if (mediaId.startsWith(LIVE_HIGH_PREFIX) || mediaId.startsWith(LIVE_LOW_PREFIX)) {
             val high = mediaId.startsWith(LIVE_HIGH_PREFIX)
             val artistId = mediaId.removePrefix(if (high) LIVE_HIGH_PREFIX else LIVE_LOW_PREFIX)
             return liveQualityItem(artistId, high)
         }
-        if (mediaId == FAVORITES_ID) return folderItem(FAVORITES_ID, "Favorites")
-        if (mediaId == FAVORITE_ARTISTS_ID) return folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists")
-        if (mediaId == FAVORITE_TRACKS_ID) return folderItem(FAVORITE_TRACKS_ID, "Favorite Tracks")
-        if (mediaId == SEARCH_HISTORY_ID) return folderItem(SEARCH_HISTORY_ID, "Search History")
         if (mediaId.startsWith(ARTIST_PREFIX)) {
             val artistId = mediaId.removePrefix(ARTIST_PREFIX)
             val artist = repository.artists.value.find { it.id == artistId }
@@ -356,50 +453,31 @@ class PlaybackService : MediaLibraryService() {
         ROOT_ID -> listOf(
             folderItem(ARTISTS_ID, "Artists"),
             folderItem(LIVE_ID, "Live"),
-            folderItem(FAVORITES_ID, "Favorites"),
+            folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists"),
+            folderItem(FAVORITE_TRACKS_ID, "Favorite Tracks"),
             folderItem(SEARCH_HISTORY_ID, "Search History"),
         )
         ARTISTS_ID -> {
             repository.loadArtists()
-            val sort = _aaSort
-            val asc = _aaSortAscending
-            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, sort, asc)
-            // Prepend the sort controls so the driver can switch Name/Date and reverse
-            // the direction. Labels reflect the CURRENT state so the driver sees what
-            // tapping will do.
+            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, _aaSort, _aaSortAscending)
+            // Flat sort actions (the AA equivalent of the phone's sort chips), then the
+            // flat artist list. No nested sort folders.
             listOf(
-                folderItem(ARTISTS_NAME_ID, sortLabel(ArtistSort.NAME, sort, asc)),
-                folderItem(ARTISTS_DATE_ID, sortLabel(ArtistSort.DATE, sort, asc)),
-                folderItem(ARTISTS_TOGGLE_ID, "Reverse order"),
+                actionItem(ACTION_SORT_TOGGLE_ID, sortToggleLabel()),
+                actionItem(ACTION_SORT_REVERSE_ID, reverseLabel()),
             ) + sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
         }
-        ARTISTS_NAME_ID -> {
-            _aaSort = ArtistSort.NAME
-            _aaSortAscending = true
-            repository.loadArtists()
-            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, ArtistSort.NAME, true)
-            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
+        LIVE_ID -> {
+            repository.loadLive(forceRefresh = true)
+            // Flat list: every live DJ appears twice — High (MP3) and Low (Ogg) — with
+            // no per-artist quality sub-folder.
+            repository.liveArtists.value.flatMap { artist ->
+                listOf(
+                    liveQualityItem(artist.id, high = true),
+                    liveQualityItem(artist.id, high = false),
+                )
+            }
         }
-        ARTISTS_DATE_ID -> {
-            _aaSort = ArtistSort.DATE
-            _aaSortAscending = false
-            repository.loadArtists()
-            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, ArtistSort.DATE, false)
-            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
-        }
-        ARTISTS_TOGGLE_ID -> {
-            _aaSortAscending = !_aaSortAscending
-            repository.loadArtists()
-            val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, _aaSort, _aaSortAscending)
-            sorted.map { it.toFolderItem("$ARTIST_PREFIX${it.id}") }
-        }
-        LIVE_ID -> repository.loadLive(forceRefresh = true).let {
-            repository.liveArtists.value.map { it.toLiveFolderItem() }
-        }
-        FAVORITES_ID -> listOf(
-            folderItem(FAVORITE_ARTISTS_ID, "Favorite Artists"),
-            folderItem(FAVORITE_TRACKS_ID, "Favorite Tracks"),
-        )
         FAVORITE_ARTISTS_ID -> {
             val favIds = favoriteArtistIds()
             repository.loadArtists()
@@ -409,19 +487,28 @@ class PlaybackService : MediaLibraryService() {
         FAVORITE_TRACKS_ID -> favoriteTracks().map { it.toMediaItem() }
         SEARCH_HISTORY_ID -> recentSearches().map { folderItem("$SEARCH_PREFIX$it", it) }
         else -> when {
-            parentId.startsWith(LIVE_FOLDER_PREFIX) -> {
-                val artistId = parentId.removePrefix(LIVE_FOLDER_PREFIX)
-                listOf(
-                    liveQualityItem(artistId, high = true),
-                    liveQualityItem(artistId, high = false),
-                )
-            }
             parentId.startsWith(ARTIST_PREFIX) ->
                 tracksForArtistId(parentId.removePrefix(ARTIST_PREFIX)).map { it.toMediaItem() }
             parentId.startsWith(SEARCH_PREFIX) ->
                 repository.search(parentId.removePrefix(SEARCH_PREFIX)).map { it.toMediaItem() }
             else -> emptyList()
         }
+    }
+
+    /** Toggle/persist the AA artist sort and tell AA to re-browse the Artists node. */
+    private suspend fun handleSortAction(mediaId: String) {
+        when (mediaId) {
+            ACTION_SORT_TOGGLE_ID -> {
+                _aaSort = if (_aaSort == ArtistSort.NAME) ArtistSort.DATE else ArtistSort.NAME
+                _aaSortAscending = _aaSort == ArtistSort.NAME
+            }
+            ACTION_SORT_REVERSE_ID -> _aaSortAscending = !_aaSortAscending
+            else -> return
+        }
+        runCatching { repository.setAASort(_aaSort.name, _aaSortAscending) }
+        repository.loadArtists()
+        val sorted = sortedArtists(repository.artists.value, repository.latestDateByArtist.value, _aaSort, _aaSortAscending)
+        mediaLibrarySession?.notifyChildrenChanged(ARTISTS_ID, sorted.size + 2, null)
     }
 
     private suspend fun tracksForArtistId(artistId: String): List<Track> {
@@ -459,30 +546,16 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    /** Map an artist to a browsable folder containing High/Low live stream children. */
-    private fun Artist.toLiveFolderItem(): MediaItem {
-        val metadata = MediaMetadata.Builder()
-            .setTitle(displayName)
-            .setArtist("LIVE")
-            .setArtworkUri(bestImageUrl?.let { android.net.Uri.parse(it) })
-            .setIsBrowsable(true)
-            .setIsPlayable(false)
-            .build()
-        return MediaItem.Builder()
-            .setMediaId("$LIVE_FOLDER_PREFIX$id")
-            .setMediaMetadata(metadata)
-            .build()
-    }
-
-    /** Build a playable live-stream item for a specific quality. */
+    /** Build a playable live-stream item for a specific quality (flat in the AA list). */
     private fun liveQualityItem(artistId: String, high: Boolean): MediaItem {
         val artist = repository.artists.value.find { it.id == artistId }
+            ?: repository.liveArtists.value.find { it.id == artistId }
             ?: Artist(artistId, prettify(artistId), null, null)
         val url = if (high) repository.liveStreamUrlHigh(artistId) else repository.liveStreamUrlLow(artistId)
         val mime = if (high) androidx.media3.common.MimeTypes.AUDIO_MPEG else androidx.media3.common.MimeTypes.AUDIO_OGG
         val metadata = MediaMetadata.Builder()
-            .setTitle(artist.displayName)
-            .setArtist(if (high) "LIVE — High (MP3)" else "LIVE — Low (Ogg)")
+            .setTitle("${artist.displayName} — ${if (high) "High (MP3)" else "Low (Ogg)"}")
+            .setArtist("LIVE")
             .setArtworkUri(artist.bestImageUrl?.let { android.net.Uri.parse(it) })
             .setIsBrowsable(false)
             .setIsPlayable(true)
@@ -496,12 +569,14 @@ class PlaybackService : MediaLibraryService() {
             .build()
     }
 
-    /** Builds a label for the sort node reflecting the current sort/direction. */
-    private fun sortLabel(target: ArtistSort, currentSort: ArtistSort, asc: Boolean): String {
-        val arrow = if (asc) "↑" else "↓"
-        val base = if (target == ArtistSort.NAME) "Name" else "Date"
-        return if (target == currentSort) "$base $arrow" else base
-    }
+    /** Label for the sort-toggle action item (mirrors the phone's active sort chip). */
+    private fun sortToggleLabel(): String =
+        if (_aaSort == ArtistSort.DATE) "Sort: Date — newest first (tap for Name)"
+        else "Sort: Name A–Z (tap for Date)"
+
+    /** Label for the direction-reverse action item (mirrors the phone's arrow). */
+    private fun reverseLabel(): String =
+        "Reverse order (now ${if (_aaSortAscending) "ascending ↑" else "descending ↓"})"
 
     private fun prettify(raw: String): String = raw.replace('_', ' ').trim()
 
@@ -510,6 +585,16 @@ class PlaybackService : MediaLibraryService() {
             .setTitle(title)
             .setIsBrowsable(true)
             .setIsPlayable(false)
+            .build()
+        return MediaItem.Builder().setMediaId(id).setMediaMetadata(metadata).build()
+    }
+
+    /** A flat, playable action row; tapping it is intercepted in onSetMediaItems. */
+    private fun actionItem(id: String, title: String): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
             .build()
         return MediaItem.Builder().setMediaId(id).setMediaMetadata(metadata).build()
     }
@@ -527,19 +612,25 @@ class PlaybackService : MediaLibraryService() {
     companion object {
         const val ROOT_ID = "root"
         const val ARTISTS_ID = "artists"
-        const val ARTISTS_NAME_ID = "artists:name"
-        const val ARTISTS_DATE_ID = "artists:date"
-        const val ARTISTS_TOGGLE_ID = "artists:toggle"
         const val LIVE_ID = "live"
-        const val FAVORITES_ID = "favorites"
         const val FAVORITE_ARTISTS_ID = "favorite_artists"
         const val FAVORITE_TRACKS_ID = "favorite_tracks"
         const val SEARCH_HISTORY_ID = "search_history"
         const val ARTIST_PREFIX = "artist:"
         const val SEARCH_PREFIX = "search:"
+        const val ACTION_PREFIX = "action:"
+        const val ACTION_SORT_TOGGLE_ID = "action:sort_toggle"
+        const val ACTION_SORT_REVERSE_ID = "action:sort_reverse"
         const val LIVE_PREFIX = "live-"
-        const val LIVE_FOLDER_PREFIX = "live-folder:"
         const val LIVE_HIGH_PREFIX = "live-high:"
         const val LIVE_LOW_PREFIX = "live-low:"
+
+        private const val CUSTOM_ACTION_STOP = "com.starchive.player.STOP"
+        private val STOP_COMMAND = SessionCommand(CUSTOM_ACTION_STOP, Bundle.EMPTY)
+        private val STOP_BUTTON: CommandButton = CommandButton.Builder()
+            .setDisplayName("Stop")
+            .setIconResId(R.drawable.ic_stop_24)
+            .setSessionCommand(STOP_COMMAND)
+            .build()
     }
 }

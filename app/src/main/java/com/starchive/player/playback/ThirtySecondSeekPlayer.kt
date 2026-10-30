@@ -5,14 +5,14 @@ import androidx.media3.common.Player
 
 /**
  * Wraps the ExoPlayer so Android Auto's rewind/fast-forward buttons use a fixed
- * 10-second step. media3 1.4.1 has no setSeekForwardIncrementMs (added in 1.9), so we
+ * 30-second step. media3 1.4.1 has no setSeekForwardIncrementMs (added in 1.9), so we
  * override seekBack()/seekForward() — the methods Android Auto and the media session
  * call — to jump by [SEEK_STEP_MS].
  *
  * We also explicitly advertise SEEK_BACK and SEEK_FORWARD in the available commands
  * so the Android Auto head unit renders the back/forward buttons.
  */
-class TenSecondSeekPlayer(player: Player) : ForwardingPlayer(player) {
+class ThirtySecondSeekPlayer(player: Player) : ForwardingPlayer(player) {
 
     override fun seekBack() {
         seekTo((currentPosition - SEEK_STEP_MS).coerceAtLeast(0L))
@@ -43,6 +43,6 @@ class TenSecondSeekPlayer(player: Player) : ForwardingPlayer(player) {
     }
 
     companion object {
-        const val SEEK_STEP_MS: Long = 10_000L
+        const val SEEK_STEP_MS: Long = 30_000L
     }
 }
