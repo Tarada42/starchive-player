@@ -11,6 +11,8 @@ import androidx.car.app.model.Template
 import com.starchive.player.R
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,12 +34,12 @@ class ArtistsScreen(
 
     private val screenScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    override fun onDestroy() {
-        screenScope.cancel()
-        super.onDestroy()
-    }
-
     init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                screenScope.cancel()
+            }
+        })
         screenScope.launch {
             repository.loadArtists()
             repository.loadLatestDates()
