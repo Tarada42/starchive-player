@@ -4,8 +4,12 @@
     <!-- Android Auto -->
     <string name="aa_home_title">STArchive</string>
     <string name="aa_artists">Artists</string>
+    <string name="aa_favorite_artists">Favorite Artists</string>
+    <string name="aa_favorite_tracks">Favorite Tracks</string>
     <string name="aa_live_now">Live now</string>
     <string name="aa_live_empty">No DJs are live right now</string>
+    <string name="aa_favorite_artists_empty">No favorite artists yet</string>
+    <string name="aa_favorite_tracks_empty">No favorite tracks yet</string>
     <string name="aa_live_quality_title">%1$s — Choose quality</string>
     <string name="aa_live_high">High (MP3)</string>
     <string name="aa_live_low">Low (Ogg)</string>

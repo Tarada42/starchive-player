@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -33,6 +34,7 @@ class ArtistsScreen(
     private var ascending = false
     private var loaded = false
 
+    private val sortDataStore = AaSortDataStore(carContext)
     private val screenScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     init {
@@ -42,6 +44,11 @@ class ArtistsScreen(
             }
         })
         screenScope.launch {
+            // Restore the last AA sort choice before loading the list so the user sees the
+            // same ordering after an AA reconnect or app restart.
+            sortMode = sortDataStore.sortMode.first()
+            ascending = sortDataStore.ascending.first()
+
             // Repository I/O (scrape, per-artist track scans) must run off the Main dispatcher.
             // Doing it on Main froze the AA UI here, which delayed tap-to-play for ~a minute.
             withContext(Dispatchers.IO) {
@@ -95,6 +102,7 @@ class ArtistsScreen(
                     SortMode.DATE -> false // newest first
                     SortMode.NAME -> true  // A-Z
                 }
+                screenScope.launch { sortDataStore.save(sortMode, ascending) }
                 artists = applySort(repository.artists.value)
                 invalidate()
             }
@@ -104,6 +112,7 @@ class ArtistsScreen(
             .setTitle(if (ascending) "▲" else "▼")
             .setOnClickListener {
                 ascending = !ascending
+                screenScope.launch { sortDataStore.save(sortMode, ascending) }
                 artists = applySort(repository.artists.value)
                 invalidate()
             }

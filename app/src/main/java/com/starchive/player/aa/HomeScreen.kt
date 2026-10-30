@@ -32,6 +32,26 @@ class HomeScreen(
             )
             .addItem(
                 Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_favorite_artists))
+                    .setOnClickListener {
+                        screenManager.push(
+                            FavoriteArtistsScreen(carContext, repository, imageCache, playbackClient)
+                        )
+                    }
+                    .build()
+            )
+            .addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_favorite_tracks))
+                    .setOnClickListener {
+                        screenManager.push(
+                            FavoriteTracksScreen(carContext, repository, playbackClient)
+                        )
+                    }
+                    .build()
+            )
+            .addItem(
+                Row.Builder()
                     .setTitle(carContext.getString(R.string.aa_live_now))
                     .setOnClickListener {
                         screenManager.push(
