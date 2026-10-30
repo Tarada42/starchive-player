@@ -250,19 +250,40 @@ class PlaybackService : MediaLibraryService() {
 
     private inner class LibrarySessionCallback : MediaLibrarySession.Callback {
 
-        /** Advertise the custom Stop command so AA can send it. */
+        /**
+         * Advertise the custom Stop command so AA can send it, and attach the custom
+         * layout (Stop button) per-connection — the reliable path in media3 1.4.x.
+         *
+         * For the Android Auto controller specifically (package "gearhead") we also
+         * remove SKIP_TO_PREVIOUS/NEXT from the available player commands: AA renders
+         * either prev/next OR rewind/fast-forward in its main control slots and always
+         * prefers prev/next, so the 30-second buttons never appear while both are
+         * advertised. With prev/next removed, AA puts the 30 s buttons in those slots.
+         */
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
-        ): MediaSession.ConnectionResult =
-            MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+        ): MediaSession.ConnectionResult {
+            val builder = MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(
                     MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                         .buildUpon()
                         .add(STOP_COMMAND)
                         .build()
                 )
-                .build()
+                .setCustomLayout(ImmutableList.of(STOP_BUTTON))
+            if (controller.packageName.contains("gearhead", ignoreCase = true)) {
+                builder.setAvailablePlayerCommands(
+                    session.player.availableCommands.buildUpon()
+                        .remove(Player.COMMAND_SEEK_TO_PREVIOUS)
+                        .remove(Player.COMMAND_SEEK_TO_NEXT)
+                        .add(Player.COMMAND_SEEK_BACK)
+                        .add(Player.COMMAND_SEEK_FORWARD)
+                        .build()
+                )
+            }
+            return builder.build()
+        }
 
         /**
          * Custom Stop (AA custom layout button): for live streams this tears down the
