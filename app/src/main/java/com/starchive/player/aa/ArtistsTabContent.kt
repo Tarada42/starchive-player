@@ -90,16 +90,11 @@ class ArtistsTabContent(
             )
         }
 
-        // Sort controls as template-scoped actions so the host renders them as BUTTONS,
-        // not list rows (rows inside TabContents have no header to hang them on).
-        // Template-scoped actions REQUIRE a CarIcon + CarColor (else addAction throws).
+        // Sort controls as template-scoped actions so the host renders them as BUTTONS.
+        // IMPORTANT: inside a media-app (MEDIA_TEMPLATES) TabTemplate, template actions may NOT
+        // carry a custom title ("Action list exceeded max number of 0 actions with custom
+        // titles" crash). So these are ICON-ONLY: a required CarIcon + CarColor, no setTitle.
         val toggleSortModeAction = Action.Builder()
-            .setTitle(
-                carContext.getString(
-                    R.string.aa_sort_by,
-                    carContext.getString(sortMode.labelRes)
-                )
-            )
             .setIcon(icon(R.drawable.aa_ic_sort))
             .setBackgroundColor(CarColor.BLUE)
             .setOnClickListener {
@@ -115,12 +110,6 @@ class ArtistsTabContent(
             .build()
 
         val toggleOrderAction = Action.Builder()
-            .setTitle(
-                carContext.getString(
-                    R.string.aa_sort_order,
-                    if (ascending) "▲" else "▼"
-                )
-            )
             .setIcon(icon(R.drawable.aa_ic_order))
             .setBackgroundColor(CarColor.BLUE)
             .setOnClickListener {
