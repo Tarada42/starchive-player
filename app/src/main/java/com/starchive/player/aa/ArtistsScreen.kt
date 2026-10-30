@@ -120,7 +120,11 @@ class ArtistsScreen(
     private fun applySort(source: List<Artist>): List<Artist> {
         val base = when (sortMode) {
             SortMode.DATE -> source.sortedBy {
-                repository.latestDateByArtist.value[it.id] ?: 0L
+                // Prefer the always-populated folder date; fall back to the (lazily loaded)
+                // per-artist latest track date map when it differs.
+                it.sourceDateMillis.takeIf { d -> d != 0L }
+                    ?: repository.latestDateByArtist.value[it.id]
+                    ?: 0L
             }
             SortMode.NAME -> source.sortedBy { it.displayName.lowercase() }
         }
