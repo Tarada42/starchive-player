@@ -4,6 +4,13 @@
     <!-- Android Auto -->
     <string name="aa_home_title">STArchive</string>
     <string name="aa_artists">Artists</string>
+    <string name="aa_live_now">Live now</string>
+    <string name="aa_live_empty">No DJs are live right now</string>
+    <string name="aa_live_quality_title">%1$s — Choose quality</string>
+    <string name="aa_live_high">High (MP3)</string>
+    <string name="aa_live_low">Low (Ogg)</string>
+    <string name="aa_live_quality_high_label">High</string>
+    <string name="aa_live_quality_low_label">Low</string>
     <string name="aa_sort_date">Date</string>
     <string name="aa_sort_name">Name</string>
     <string name="aa_now_playing">Now Playing</string>

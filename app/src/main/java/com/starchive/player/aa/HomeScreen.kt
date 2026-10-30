@@ -30,6 +30,16 @@ class HomeScreen(
                     }
                     .build()
             )
+            .addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_live_now))
+                    .setOnClickListener {
+                        screenManager.push(
+                            LiveScreen(carContext, repository, imageCache, playbackClient)
+                        )
+                    }
+                    .build()
+            )
             .build()
 
         val header = Header.Builder()

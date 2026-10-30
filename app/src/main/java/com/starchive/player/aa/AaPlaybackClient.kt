@@ -2,6 +2,7 @@ package com.starchive.player.aa
 
 import android.content.ComponentName
 import android.os.Bundle
+import android.support.v4.media.session.MediaSessionCompat
 import androidx.car.app.CarContext
 import androidx.car.app.media.MediaPlaybackManager
 import androidx.core.os.BundleCompat
@@ -12,8 +13,8 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
-import android.support.v4.media.session.MediaSessionCompat
 import com.google.common.util.concurrent.ListenableFuture
+import com.starchive.player.data.Artist
 import com.starchive.player.data.Track
 import com.starchive.player.playback.PlaybackService
 import kotlinx.coroutines.CoroutineScope
@@ -25,11 +26,11 @@ class AaPlaybackClient(
     private val scope: CoroutineScope,
 ) {
     private var controller: MediaController? = null
-    private var pending: Track? = null
+    private var pending: PendingPlayback? = null
     private var connectionFuture: ListenableFuture<MediaController>? = null
     private var mediaTokenRegistered = false
 
-    /** Connects asynchronously; any [play] call before connection is queued and played once ready. */
+    /** Connects asynchronously; any play call before connection is queued and played once ready. */
     fun connect() {
         if (connectionFuture != null) return
         val token = SessionToken(carContext, ComponentName(carContext, PlaybackService::class.java))
@@ -39,10 +40,12 @@ class AaPlaybackClient(
             val c = runCatching { future.get() }.getOrNull() ?: return@addListener
             controller = c
             registerMediaPlaybackToken(c)
-            pending?.let { track ->
-                pending = null
-                play(track)
+            when (val p = pending) {
+                is PendingPlayback.Track -> play(p.track)
+                is PendingPlayback.Live -> playLive(p.artist, p.url, p.mimeType, p.qualityLabel)
+                null -> { /* nothing queued */ }
             }
+            pending = null
         }, { runnable -> scope.launch { runnable.run() } })
     }
 
@@ -50,10 +53,30 @@ class AaPlaybackClient(
     fun play(track: Track) {
         val c = controller
         if (c == null) {
-            pending = track
+            pending = PendingPlayback.Track(track)
             return
         }
         c.setMediaItems(listOf(track.toAaMediaItem()))
+        c.prepare()
+        c.play()
+    }
+
+    /**
+     * Play a live restream for [artist] through the shared MediaSession.
+     * [url] and [mimeType] select the High (MP3) or Low (Ogg) mount.
+     */
+    fun playLive(
+        artist: Artist,
+        url: String,
+        mimeType: String,
+        qualityLabel: String,
+    ) {
+        val c = controller
+        if (c == null) {
+            pending = PendingPlayback.Live(artist, url, mimeType, qualityLabel)
+            return
+        }
+        c.setMediaItems(listOf(buildLiveMediaItem(artist, url, mimeType, qualityLabel)))
         c.prepare()
         c.play()
     }
@@ -103,6 +126,17 @@ class AaPlaybackClient(
     }
 }
 
+/** Queued playback request used before the MediaController has finished connecting. */
+private sealed class PendingPlayback {
+    data class Track(val track: com.starchive.player.data.Track) : PendingPlayback()
+    data class Live(
+        val artist: Artist,
+        val url: String,
+        val mimeType: String,
+        val qualityLabel: String,
+    ) : PendingPlayback()
+}
+
 private fun Track.toAaMediaItem(): MediaItem {
     val metadata = MediaMetadata.Builder()
         .setTitle(title)
@@ -115,6 +149,27 @@ private fun Track.toAaMediaItem(): MediaItem {
         .setUri(url)
         .setMediaId(id)
         .setMimeType(MimeTypes.AUDIO_MPEG)
+        .setMediaMetadata(metadata)
+        .build()
+}
+
+private fun buildLiveMediaItem(
+    artist: Artist,
+    url: String,
+    mimeType: String,
+    qualityLabel: String,
+): MediaItem {
+    val metadata = MediaMetadata.Builder()
+        .setTitle("${artist.displayName} — LIVE ($qualityLabel)")
+        .setArtist(artist.displayName)
+        .setArtworkUri(artist.bestImageUrl?.let { android.net.Uri.parse(it) })
+        .setIsBrowsable(false)
+        .setIsPlayable(true)
+        .build()
+    return MediaItem.Builder()
+        .setUri(url)
+        .setMediaId("live-${artist.id}")
+        .setMimeType(mimeType)
         .setMediaMetadata(metadata)
         .build()
 }
