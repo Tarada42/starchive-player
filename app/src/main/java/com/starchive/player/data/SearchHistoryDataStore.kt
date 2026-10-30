@@ -14,9 +14,8 @@ private val Context.searchHistoryStore: DataStore<Preferences> by preferencesDat
 /**
  * Persists recent search queries (most-recent first, capped at [MAX_ENTRIES]).
  *
- * Used both by the on-device Search screen (quick re-run chips) and by the
- * Android Auto / MediaLibraryService browse tree, which exposes a "Search History"
- * root so a driver can re-browse or voice-replay a past search.
+ * Used by the on-device Search screen (quick re-run chips) and recently-played
+ * suggestions. Android Auto support was removed, so no browse-tree consumer.
  */
 class SearchHistoryDataStore(private val context: Context) {
 

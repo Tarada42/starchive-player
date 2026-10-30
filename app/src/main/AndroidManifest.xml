@@ -10,12 +10,6 @@
          show on the lock screen but be hidden in the shade. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- The app is usable on Android Automotive OS / Android Auto head units but does
-         not require it; a phone-only install remains fully functional. -->
-    <uses-feature
-        android:name="android.hardware.type.automotive"
-        android:required="false" />
-
     <application
         android:name=".StArchiveApp"
         android:allowBackup="true"
@@ -24,11 +18,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.StArchivePlayer"
         tools:targetApi="35">
-
-        <!-- Declares this app as an Android Auto / Automotive media app. -->
-        <meta-data
-            android:name="com.google.android.gms.car.application"
-            android:resource="@xml/automotive_app_desc" />
 
         <!-- Google Cast options provider (phone casting only). -->
         <meta-data
@@ -45,18 +34,14 @@
             </intent-filter>
         </activity>
 
-        <!-- Media3 MediaLibraryService: background playback, lock-screen / notification
-             controls, and the browsable media tree (Artists / Favorites / Search History)
-             that Android Auto and the Google Assistant use to browse and voice-launch
-             playback ("play artist X", "play favorites"). -->
+        <!-- Media3 MediaSessionService: background playback + lock-screen / notification
+             controls on the phone. Android Auto support has been removed. -->
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
-                <action android:name="androidx.media3.session.MediaLibraryService" />
-                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
     </application>

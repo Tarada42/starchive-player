@@ -38,21 +38,4 @@ class UserPreferencesDataStore(private val context: Context) {
             prefs[artistLayoutKey] = layout.key
         }
     }
-
-    // --- Android Auto artist sort ("NAME" / "DATE" + direction) ---
-
-    private val aaSortKey = stringPreferencesKey("aa_sort")
-    private val aaSortAscendingKey = booleanPreferencesKey("aa_sort_ascending")
-
-    /** AA artist sort preference; defaults to newest-first (DATE, descending). */
-    val aaSort: Flow<Pair<String, Boolean>> = context.userPreferencesStore.data.map { prefs ->
-        (prefs[aaSortKey] ?: "DATE") to (prefs[aaSortAscendingKey] ?: false)
-    }
-
-    suspend fun setAASort(sort: String, ascending: Boolean) {
-        context.userPreferencesStore.edit { prefs ->
-            prefs[aaSortKey] = sort
-            prefs[aaSortAscendingKey] = ascending
-        }
-    }
 }
