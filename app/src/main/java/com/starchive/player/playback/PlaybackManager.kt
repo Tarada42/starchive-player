@@ -2,9 +2,11 @@ package com.starchive.player.playback
 
 import android.content.ComponentName
 import android.content.Context
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.starchive.player.StArchiveApp
@@ -47,6 +49,36 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     private var queue: List<Track> = emptyList()
     private var pendingPlay: Pair<List<Track>, Int>? = null
     private var lastPersistedTrackId: String? = null
+    private var wasRemotePlayback = false
+
+    /**
+     * Reacts to the MediaSession swapping the underlying player. When the service moves
+     * playback back to the local ExoPlayer after a cast session ends, the controller's
+     * device info flips from remote to local. That is the signal to re-issue the last
+     * user-selected track from the authoritative queue, using its real local/stream URI.
+     */
+    private val deviceInfoListener = object : Player.Listener {
+        override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
+            val isRemote = deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE
+            val isLocal = deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_LOCAL
+            if (isLocal && wasRemotePlayback) {
+                restoreLocalPlayback()
+            }
+            wasRemotePlayback = isRemote
+        }
+    }
+
+    private fun restoreLocalPlayback() {
+        val tracks = queue
+        val currentTrack = _current.value ?: return
+        val index = tracks.indexOfFirst { it.id == currentTrack.id }.coerceAtLeast(0)
+        val positionMs = if (currentTrack.id.startsWith("live-")) {
+            0L
+        } else {
+            _positionMs.value.coerceAtLeast(0L)
+        }
+        play(tracks, index, positionMs)
+    }
 
     fun connect() {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -54,6 +86,9 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
         controllerFuture = future
         future.addListener({
             controller = future.get()
+            val c = controller ?: return@addListener
+            c.addListener(deviceInfoListener)
+            wasRemotePlayback = c.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE
             startPositionTicker()
             pendingPlay?.let { (tracks, index) ->
                 pendingPlay = null
@@ -104,6 +139,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     }
 
     fun release() {
+        controller?.removeListener(deviceInfoListener)
         controller?.release()
         controller = null
     }

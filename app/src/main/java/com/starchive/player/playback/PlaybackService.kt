@@ -8,7 +8,6 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -56,53 +55,8 @@ class PlaybackService : MediaSessionService() {
     private var openAppIntent: PendingIntent? = null
     private var mediaSession: MediaSession? = null
 
-    /** Snapshot of the active queue captured while playback is running (not at cast teardown). */
-    private var lastSelectedItems: List<MediaItem> = emptyList()
-    private var lastSelectedIndex: Int = 0
-    private var lastSelectedPositionMs: Long = 0L
-    private var lastSelectedPlayWhenReady: Boolean = false
-
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val repository: Repository by lazy { (application as StArchiveApp).repository }
-
-    /**
-     * Listener attached to whichever player is currently active. Captures a reliable queue
-     * snapshot on every item transition and timeline change so that switchToLocal() can
-     * rebuild the local player from this snapshot instead of reading the dying CastPlayer.
-     */
-    private val snapshotListener = object : Player.Listener {
-        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = captureSnapshot()
-        override fun onTimelineChanged(timeline: Timeline, reason: Int) = captureSnapshot()
-        override fun onPositionDiscontinuity(
-            oldPosition: Player.PositionInfo,
-            newPosition: Player.PositionInfo,
-            reason: Int,
-        ) = captureSnapshot()
-        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-            lastSelectedPlayWhenReady = playWhenReady
-        }
-    }
-
-    private fun attachSnapshotListener(target: Player?) {
-        target ?: return
-        target.removeListener(snapshotListener)
-        target.addListener(snapshotListener)
-    }
-
-    private fun detachSnapshotListener(target: Player?) {
-        target?.removeListener(snapshotListener)
-    }
-
-    private fun captureSnapshot() {
-        val p = player ?: return
-        val count = p.mediaItemCount
-        if (count > 0) {
-            lastSelectedItems = (0 until count).map { p.getMediaItemAt(it) }
-            lastSelectedIndex = p.currentMediaItemIndex.coerceAtLeast(0)
-            lastSelectedPositionMs = p.currentPosition.coerceAtLeast(0L)
-            lastSelectedPlayWhenReady = p.playWhenReady
-        }
-    }
 
     override fun onCreate() {
         super.onCreate()
@@ -152,8 +106,6 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(openAppIntent!!)
             .setCallback(mediaSessionCallback)
             .build()
-
-        attachSnapshotListener(wrappedPlayer)
 
         // Google Cast (PHONE ONLY). CastContext init can fail on devices without Play
         // Services — fail soft and keep local playback fully working.
@@ -222,13 +174,11 @@ class PlaybackService : MediaSessionService() {
         if (isCasting) return
         val cp = CastPlayer(ctx)
         castPlayer = cp
-        detachSnapshotListener(old)
         transferPlaybackState(from = old, to = cp)
         old.pause()
         mediaSession?.setPlayer(cp)
         player = cp
         isCasting = true
-        attachSnapshotListener(cp)
     }
 
     /** Move playback back to the local player when the cast session ends. */
@@ -236,28 +186,16 @@ class PlaybackService : MediaSessionService() {
         val lp = localPlayer ?: return
         val old = player ?: return
         if (!isCasting) return
-        detachSnapshotListener(old)
         old.pause()
-        if (lastSelectedItems.isNotEmpty()) {
-            val isLive = lastSelectedItems.getOrNull(lastSelectedIndex)?.mediaId?.startsWith("live-") == true
-            val startPositionMs = if (isLive) 0L else lastSelectedPositionMs
-            lp.setMediaItems(lastSelectedItems, lastSelectedIndex, startPositionMs)
-            // Resume local playback when the user stops casting. The CastPlayer flips
-            // playWhenReady to false during teardown, so the snapshot-captured value is
-            // unreliable here. Default behavior: continue the last track on the phone.
-            lp.playWhenReady = true
-            lp.prepare()
-        } else {
-            // No reliable snapshot (no track was ever selected while casting). Keep the local
-            // player authoritative and paused to avoid jumping to a stale or wrong item.
-            lp.playWhenReady = false
-        }
         castPlayer?.release()
         castPlayer = null
+        // Keep the single persistent MediaSession alive and just point it back at the
+        // local player. PlaybackManager observes the resulting LOCAL device-info change
+        // and re-issues the authoritative queue/URI; the service no longer tries to
+        // rebuild the local player's items from the CastPlayer snapshot.
         mediaSession?.setPlayer(lp)
         player = lp
         isCasting = false
-        attachSnapshotListener(lp)
     }
 
     /** Copy media items + current index/position/play state between players.
