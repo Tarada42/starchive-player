@@ -109,5 +109,9 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // Background polling for "favorite DJ is live" notifications.
+    // WorkManager enforces a minimum periodic interval of 15 minutes.
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

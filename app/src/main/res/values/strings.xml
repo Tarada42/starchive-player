@@ -1,6 +1,12 @@
 <resources>
     <string name="app_name">STarchive</string>
 
+    <!-- Live notifications (phone only) -->
+    <string name="live_notification_channel_name">Live alerts</string>
+    <string name="live_notification_channel_description">Notifications when a favorite DJ goes live</string>
+    <string name="live_notification_text">is live now</string>
+    <string name="live_notification_playing_title">%1$s — LIVE</string>
+
     <!-- Android Auto -->
     <string name="aa_home_title">STArchive</string>
     <string name="aa_artists">Artists</string>

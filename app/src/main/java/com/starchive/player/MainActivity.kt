@@ -13,6 +13,8 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.starchive.player.data.SettingsDataStore
+import com.starchive.player.notifications.LiveNotificationChannel
+import com.starchive.player.notifications.LiveNotificationsScheduler
 import com.starchive.player.ui.AppNav
 import com.starchive.player.ui.theme.StArchiveTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,9 +23,14 @@ import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
-    /** Intent extra: opened by tapping the media notification body — route to Player. */
     companion object {
+        /** Intent extra: opened by tapping the media notification body — route to Player. */
         const val EXTRA_OPEN_PLAYER = "com.starchive.player.OPEN_PLAYER"
+
+        /** Intent extras: opened by tapping a "favorite DJ is live" notification. */
+        const val EXTRA_LIVE_ARTIST_ID = "com.starchive.player.LIVE_ARTIST_ID"
+        const val EXTRA_LIVE_ARTIST_NAME = "com.starchive.player.LIVE_ARTIST_NAME"
+        const val EXTRA_LIVE_ARTIST_IMAGE = "com.starchive.player.LIVE_ARTIST_IMAGE"
     }
 
     /**
@@ -34,12 +41,24 @@ class MainActivity : AppCompatActivity() {
     private val _openPlayerRequests = MutableStateFlow(0)
     val openPlayerRequests = _openPlayerRequests.asStateFlow()
 
+    /** Carries the live artist a notification asked us to play. Consumed by [AppNav]. */
+    private val _openLiveArtist = MutableStateFlow<OpenLiveArtist?>(null)
+    val openLiveArtist = _openLiveArtist.asStateFlow()
+
+    data class OpenLiveArtist(
+        val id: String,
+        val displayName: String,
+        val imageUrl: String?,
+    )
+
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or not — nothing to do */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        LiveNotificationChannel.create(this)
 
         val settings = SettingsDataStore(this)
 
@@ -67,7 +86,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // If live notifications are enabled, make sure the periodic worker is scheduled.
+        lifecycleScope.launch {
+            LiveNotificationsScheduler.scheduleIfEnabled(this@MainActivity)
+        }
+
         handleOpenPlayerIntent(intent)
+        handleOpenLiveArtistIntent(intent)
     }
 
     /**
@@ -78,6 +103,7 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleOpenPlayerIntent(intent)
+        handleOpenLiveArtistIntent(intent)
     }
 
     private fun handleOpenPlayerIntent(intent: Intent?) {
@@ -86,5 +112,20 @@ class MainActivity : AppCompatActivity() {
             // Consume the flag so a later recreation doesn't double-handle it.
             intent.removeExtra(EXTRA_OPEN_PLAYER)
         }
+    }
+
+    private fun handleOpenLiveArtistIntent(intent: Intent?) {
+        val id = intent?.getStringExtra(EXTRA_LIVE_ARTIST_ID) ?: return
+        val name = intent.getStringExtra(EXTRA_LIVE_ARTIST_NAME) ?: id
+        val image = intent.getStringExtra(EXTRA_LIVE_ARTIST_IMAGE)
+        _openLiveArtist.value = OpenLiveArtist(id, name, image)
+        intent.removeExtra(EXTRA_LIVE_ARTIST_ID)
+        intent.removeExtra(EXTRA_LIVE_ARTIST_NAME)
+        intent.removeExtra(EXTRA_LIVE_ARTIST_IMAGE)
+    }
+
+    /** Called by [AppNav] once it has handled the live-artist request. */
+    fun consumeOpenLiveArtist() {
+        _openLiveArtist.value = null
     }
 }

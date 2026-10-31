@@ -60,6 +60,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.starchive.player.MainActivity
+import com.starchive.player.R
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Track
 import com.starchive.player.playback.PlaybackManager
@@ -297,6 +298,29 @@ fun AppNav(
         if (openPlayerRequests > 0 && current != null) {
             navController.navigate(PlayerRoute)
         }
+    }
+
+    // "Favorite DJ is live" notification tap → start playing that DJ's live stream.
+    // This mirrors tapping a live card in the Live tab, defaulting to the high-quality
+    // MP3 stream and reusing the existing PlaybackManager playTrack path.
+    val openLiveArtist by mainActivity?.openLiveArtist
+        ?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
+    LaunchedEffect(openLiveArtist) {
+        val info = openLiveArtist ?: return@LaunchedEffect
+        val artist = Artist(info.id, info.displayName, null, info.imageUrl)
+        val liveTrack = Track(
+            id = "live-${artist.id}",
+            artistId = artist.id,
+            artistName = artist.displayName,
+            title = context.getString(R.string.live_notification_playing_title, artist.displayName),
+            url = viewModel.liveStreamUrlHigh(artist.id),
+            thumbnailUrl = artist.bestImageUrl,
+            dateMillis = System.currentTimeMillis(),
+            mimeType = MimeTypes.AUDIO_MPEG,
+        )
+        manager.playTrack(liveTrack)
+        mainActivity?.consumeOpenLiveArtist()
+        navController.navigate(PlayerRoute)
     }
 
     // On launch: if Single Artist mode is active, the front page starts on that
