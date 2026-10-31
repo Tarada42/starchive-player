@@ -242,7 +242,10 @@ class PlaybackService : MediaSessionService() {
             val isLive = lastSelectedItems.getOrNull(lastSelectedIndex)?.mediaId?.startsWith("live-") == true
             val startPositionMs = if (isLive) 0L else lastSelectedPositionMs
             lp.setMediaItems(lastSelectedItems, lastSelectedIndex, startPositionMs)
-            lp.playWhenReady = lastSelectedPlayWhenReady
+            // Resume local playback when the user stops casting. The CastPlayer flips
+            // playWhenReady to false during teardown, so the snapshot-captured value is
+            // unreliable here. Default behavior: continue the last track on the phone.
+            lp.playWhenReady = true
             lp.prepare()
         } else {
             // No reliable snapshot (no track was ever selected while casting). Keep the local
