@@ -70,6 +70,9 @@ dependencies {
     // AppCompat (needed by MediaRouteButton / Cast chooser dialog)
     implementation("androidx.appcompat:appcompat:1.7.0")
 
+    // Custom Tabs: force About links into the default browser instead of domain apps (e.g. Twitch)
+    implementation("androidx.browser:browser:1.5.0")
+
     // Compose
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

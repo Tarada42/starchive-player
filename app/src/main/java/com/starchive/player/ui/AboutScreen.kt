@@ -1,8 +1,9 @@
 package com.starchive.player.ui
 
 import android.content.Context
-import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -162,5 +163,11 @@ private fun AboutLinkRow(
 }
 
 private fun openAboutLink(context: Context, url: String) {
-    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    try {
+        CustomTabsIntent.Builder()
+            .build()
+            .launchUrl(context, Uri.parse(url))
+    } catch (e: ActivityNotFoundException) {
+        // Ignore if no browser/Custom Tab provider is available on the device.
+    }
 }
