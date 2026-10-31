@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">STArchive Player</string>
+    <string name="app_name">STarchive</string>
 
     <!-- Android Auto -->
     <string name="aa_home_title">STArchive</string>

@@ -28,6 +28,16 @@ android {
         }
     }
 
+    // Auto-name the output APK as STArchivePlayer-<versionName>-<buildType>.apk
+    // (debug vs release acts as the variant suffix; keeps the single-APK setup).
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "STArchivePlayer-${variant.versionName}-${variant.buildType.name}.apk"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
