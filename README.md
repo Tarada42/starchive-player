@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎧 STArchive Player
+# STArchive Player
 
 **Stream DJ sets from ST Archive — on your phone and in the car.**
 
@@ -10,23 +10,23 @@ _Android app · Kotlin · Jetpack Compose · Media3/ExoPlayer · Android Auto_
 
 STArchive Player is a native Android music player for the [ST Archive](https://starchive.streambox.space) — a community of Twitch DJs (team [Stellar Transmissions](https://www.twitch.tv/team/stellartransmissionscrew)). Browse every DJ, stream their sets, tune into who's live right now, download sets for offline listening, and control it all from the car.
 
-> 📄 Full overview: **[ABOUT.md](ABOUT.md)** · 🗺️ Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
+> Full overview: **[ABOUT.md](ABOUT.md)** · Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
 ---
 
-## ✨ Features
+## Features
 
-- 🎛️ **Browse & stream** every DJ's recorded sets (audio-only MP4) — grid or list view with date/name sorting
-- 🔴 **Live now** — see who's broadcasting right now and tune in instantly, with High (MP3) / Low (Ogg) quality choice where available
-- ⭐ **Favourites** for artists and individual sets
-- ▶️ **Resume playback** — picks up your last track + position, per DJ
-- 📌 **Single Artist mode** — pin a DJ and focus the whole app on them
-- ⬇️ **Offline downloads** — save sets (multi-select) and play with zero data
-- 📺 **Cast** — stream live (MP3 & Ogg) and archive sets to Chromecast/Google Cast devices from the phone app; track switches follow the device, and stopping a cast resumes the last track locally
-- 🔍 **Search** with persistent recent searches
-- ☰ **Hamburger drawer & ⋮ overflow menu** — Settings and About (app version, Twitch/Discord/web links) from the phone app
-- 🚗 **Android Auto** — full media module with Artists / Live / Favourites tabs, artist grid⇄list toggle, sort cycling, quality picker, and a plain-list player with -10 s / +10 s / play-pause / stop
-- 🔔 **Background playback** with notification + lock-screen controls
+- **Browse & stream** every DJ's recorded sets (audio-only MP4) — grid or list view with date/name sorting
+- **Live now** — see who's broadcasting right now and tune in instantly, with High (MP3) / Low (Ogg) quality choice where available
+- **Favourites** for artists and individual sets
+- **Resume playback** — picks up your last track + position, per DJ
+- **Single Artist mode** — pin a DJ and focus the whole app on them
+- **Offline downloads** — save sets (multi-select) and play with zero data
+- **Cast** — stream live (MP3 & Ogg) and archive sets to Chromecast/Google Cast devices from the phone app; track switches follow the device, and stopping a cast resumes the last track locally
+- **Search** with persistent recent searches
+- **Hamburger drawer & overflow menu** — Settings and About (app version, Twitch/Discord/web links) from the phone app
+- **Android Auto** — full media module with Artists / Live / Favourites tabs, artist grid/list toggle, sort cycling, quality picker, and a plain-list player with -10 s / +10 s / play-pause / stop
+- **Background playback** with notification + lock-screen controls
 
 ---
 
@@ -83,9 +83,9 @@ The look is matched to the STArchive web app palette:
 
 Android player for the music archive for members of Twitch team **Stellar Transmissions**.
 
-- 🌐 **Twitch team:** https://www.twitch.tv/team/stellartransmissionscrew
-- 💬 **Discord:** https://discord.gg/xg9yEAv
-- 🌍 **Web app:** https://testplayer.streambox.space/
+- **Twitch team:** https://www.twitch.tv/team/stellartransmissionscrew
+- **Discord:** https://discord.gg/xg9yEAv
+- **Web app:** https://testplayer.streambox.space/
 
 ---
 
@@ -95,7 +95,7 @@ Released under the [MIT License](LICENSE).
 
 <div align="center">
 
-**Built with ❤️ for the ST Archive community**
+**Built for the ST Archive community**
 
 _Vibecoded using Birgitte The Bot, under direction of NickTheD_
 
