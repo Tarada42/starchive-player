@@ -115,6 +115,7 @@ fun ArtistListScreen(
                     titleContentColor = MaterialTheme.colorScheme.onBackground,
                     actionIconContentColor = MaterialTheme.colorScheme.onBackground,
                 ),
+                navigationIcon = { DrawerMenuButton() },
                 actions = {
                     IconButton(onClick = onToggleLayoutMode) {
                         Icon(

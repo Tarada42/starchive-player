@@ -67,6 +67,7 @@ fun FavoritesScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
+                navigationIcon = { DrawerMenuButton() },
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
