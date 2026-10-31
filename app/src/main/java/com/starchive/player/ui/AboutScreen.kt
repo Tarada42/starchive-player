@@ -1,9 +1,11 @@
 package com.starchive.player.ui
 
-import android.content.Context
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -163,11 +165,49 @@ private fun AboutLinkRow(
 }
 
 private fun openAboutLink(context: Context, url: String) {
+    val uri = Uri.parse(url)
+    val defaultBrowser = resolveDefaultBrowserComponent(context)
+
+    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        addCategory(Intent.CATEGORY_BROWSABLE)
+        defaultBrowser?.let { component = it }
+    }
+
     try {
-        CustomTabsIntent.Builder()
-            .build()
-            .launchUrl(context, Uri.parse(url))
+        context.startActivity(intent)
     } catch (e: ActivityNotFoundException) {
-        // Ignore if no browser/Custom Tab provider is available on the device.
+        // No browser available; ignore safely.
+    }
+}
+
+/**
+ * Resolves the device's default web browser using a *neutral* URL
+ * (https://example.com). A domain-specific app such as Twitch can register
+ * itself as a handler for twitch.tv, so probing with the real target URL would
+ * return the Twitch app. By probing a neutral URL with [Intent.CATEGORY_BROWSABLE]
+ * and [PackageManager.MATCH_DEFAULT_ONLY], we get the browser the user has set
+ * as default, then return its [ComponentName] so the real link can be opened with
+ * an explicit-component intent that no domain app can intercept.
+ */
+private fun resolveDefaultBrowserComponent(context: Context): ComponentName? {
+    val packageManager = context.packageManager
+    val neutralUri = Uri.parse("https://example.com")
+    val probeIntent = Intent(Intent.ACTION_VIEW, neutralUri)
+        .addCategory(Intent.CATEGORY_BROWSABLE)
+
+    return try {
+        packageManager.resolveActivity(probeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo
+            ?.let { info ->
+                // If no default browser is set, the system may return the
+                // resolver activity instead of a real browser. Ignore it.
+                if (info.packageName == "android") {
+                    null
+                } else {
+                    ComponentName(info.packageName, info.name)
+                }
+            }
+    } catch (e: Exception) {
+        null
     }
 }

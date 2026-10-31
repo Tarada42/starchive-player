@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "scope": "phone-only About links",
+  "clean_room_violations": [],
+  "aa_touch_violations": [],
+  "media3_api_violations": [],
+  "logic_errors": [],
+  "security_concerns": [],
+  "acceptance_met": {
+    "explicit_default_browser_resolution": true,
+    "all_three_links_use_new_opener": true,
+    "labels_unchanged": true,
+    "urls_unchanged": true,
+    "english_only": true,
+    "no_aa_touch": true,
+    "browser_not_found_safe": true,
+    "unused_androidx_browser_removed": true
+  },
+  "suggestions": [
+    "Consider a follow-up on-device test with the Twitch app installed to confirm the Twitch link opens in the default browser rather than the Twitch app."
+  ],
+  "summary": "Diff replaces CustomTabsIntent with explicit default-browser resolution using a neutral URL probe + MATCH_DEFAULT_ONLY, then launches the real link with an explicit ComponentName. All three About rows remain unchanged, no AA code is touched, androidx.browser is removed, and no-browser cases are handled safely."
+}

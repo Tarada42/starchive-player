@@ -17,6 +17,16 @@
         android:name="android.software.car.templates_host.media"
         android:required="false" />
 
+    <!-- Android 11+ package visibility: we need to resolve the default browser
+         so About links can be opened with an explicit browser component. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".StArchiveApp"
         android:allowBackup="true"
