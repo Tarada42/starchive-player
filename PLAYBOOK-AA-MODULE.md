@@ -106,6 +106,36 @@ fix-and-rejudge cycles; if still failing, escalate to Nikolaj.
 
 ---
 
+## SECURITY PASS (before every push — mandatory)
+
+After the judge passes, run a **dedicated security scan** before pushing. The
+judge reviews code correctness; the security pass hunts for things a review
+glances past — secrets, injection, unsafe patterns, and repo hygiene.
+
+1. **Static secret/Injection scan (added lines):**
+   ```bash
+   git diff --cached | grep "^+" | grep -iE "(api_key|secret|password|token|passwd)\s*=\s*['\"][^'\"]{6,}['\"]"
+   git diff --cached | grep "^+" | grep -E "os\.system\(|subprocess.*shell=True|\beval\(|\bexec\(|pickle\.loads?"
+   ```
+   Any real hit (not a constant NAME like COMMAND_GET_PLATFORM_TOKEN) = fail the push.
+2. **History scan (one-time + spot-check):** `git log --all -p` grepped for
+   `ghp_`, `sk-or-`, `AKIA`, `eyJ<JWT>`, `authorization: bearer`. If any real
+   secret is in history, it must be rotated + history scrubbed (do NOT just
+   delete the file — the commit stays). Empty/false-positives = clean.
+3. **Hygiene:** verify `.env`/`.env.local` are in `.gitignore` (NOT committed),
+   no build/`local.properties` artifacts staged.
+4. **Independent security subagent** (`delegate_task`, blank context): give it
+   the diff + static-scan output, fail-closed (secrets/backdoor/exfiltration/
+   injection/unsafe-deserialization → reject). Only push when it passes.
+
+**Repo scanning (GitHub, free):** public repo — ensure Dependency Graph is on
+(→ Dependabot vulnerability alerts + automated fix PRs). Secret scanning is on
+by default for public repos; if ever off, enable in Settings → Code security and
+analysis → Secret scanning + Push protection. Dependabot alerts reach the owner
+by default.
+
+---
+
 ## READY-TO-RUN JUDGE PROMPT (copy-paste into STArchive session after each phase)
 
 > You are an INDEPENDENT judge reviewing a single phase of a clean-room Android
