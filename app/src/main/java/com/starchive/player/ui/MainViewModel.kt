@@ -110,6 +110,23 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     val artistPositions: StateFlow<Map<String, Pair<String, Long>>> = repo.artistPositions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    /** Recently played resume points, hydrated from the ordered history and current artists.
+     *  Unresolvable (deleted) tracks and live streams are skipped. */
+    val recentResumePoints: StateFlow<List<ResumePoint>> = combine(
+        repo.recentHistory,
+        repo.artists,
+    ) { history, artists ->
+        val artistMap = artists.associateBy { it.id }
+        history.mapNotNull { entry ->
+            if (entry.trackId.startsWith("live-")) return@mapNotNull null
+            val artist = artistMap[entry.artistId] ?: return@mapNotNull null
+            val tracks = runCatching { repo.tracks(artist) }.getOrElse { return@mapNotNull null }
+            val index = tracks.indexOfFirst { it.id == entry.trackId }.takeIf { it >= 0 } ?: return@mapNotNull null
+            ResumePoint(artist, tracks, index, entry.positionMs)
+        }
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun setSingleArtist(artistId: String?) {
         viewModelScope.launch { repo.setSingleArtist(artistId) }
     }

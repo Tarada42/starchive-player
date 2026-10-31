@@ -37,6 +37,10 @@ class Repository(
     private val _artists = MutableStateFlow<List<Artist>>(emptyList())
     val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
 
+    /** Cached artist id -> Artist map, reused for quick hydration. */
+    @Volatile
+    private var cachedArtistsMap: Map<String, Artist> = emptyMap()
+
     /** Twitch usernames currently live on live.streambox.space (empty until first fetch). */
     private val _liveUsernames = MutableStateFlow<List<String>>(emptyList())
     val liveUsernames: StateFlow<List<String>> = _liveUsernames.asStateFlow()
@@ -66,6 +70,7 @@ class Repository(
         if (!forceRefresh && artistsLoaded && _artists.value.isNotEmpty()) return
         val fresh = scraper.fetchArtists().withCachedAvatars()
         _artists.value = fresh
+        cachedArtistsMap = fresh.associateBy { it.id }
         artistsLoaded = true
         // Seed newest-first ordering from the last persisted dates so Browse is sorted
         // immediately on launch, before the background refresh completes.
@@ -239,12 +244,19 @@ class Repository(
     suspend fun setArtistListLayout(layout: ArtistListLayout) =
         userPreferencesDataStore.setArtistListLayout(layout)
 
-    // Playback resume state (last track/position, per-artist positions, single-artist mode)
+    // Playback resume state (last track/position, per-artist positions, single-artist mode, recent history)
     val lastTrackId: Flow<String?> = playbackStateDataStore.lastTrackId
     val lastArtistId: Flow<String?> = playbackStateDataStore.lastArtistId
     val lastPositionMs: Flow<Long> = playbackStateDataStore.lastPositionMs
     val singleArtistId: Flow<String?> = playbackStateDataStore.singleArtistId
     val artistPositions: Flow<Map<String, Pair<String, Long>>> = playbackStateDataStore.artistPositions
+    val recentHistory: Flow<List<PlaybackStateDataStore.RecentEntry>> = playbackStateDataStore.recentHistory
+
+    /** Hydrate artist ids to full [Artist] records (name + thumbnail) using the cached map. */
+    suspend fun artistsMap(): Map<String, Artist> {
+        if (!artistsLoaded) loadArtists()
+        return cachedArtistsMap
+    }
 
     suspend fun saveLastPlayback(track: Track, positionMs: Long) =
         playbackStateDataStore.saveLast(track.id, track.artistId, positionMs)

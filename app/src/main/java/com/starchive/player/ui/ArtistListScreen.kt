@@ -74,9 +74,11 @@ fun ArtistListScreen(
     isDark: Boolean,
     liveArtists: List<Artist> = emptyList(),
     layoutMode: ArtistListLayout = ArtistListLayout.GRID,
+    recentResumePoints: List<MainViewModel.ResumePoint> = emptyList(),
     onSortChange: (ArtistSort) -> Unit,
     onArtistClick: (Artist) -> Unit,
     onLiveClick: (Artist) -> Unit = {},
+    onContinueListeningClick: (MainViewModel.ResumePoint) -> Unit = {},
     onToggleFavorite: (Artist) -> Unit,
     onSetSingleArtist: (Artist?) -> Unit,
     onToggleTheme: () -> Unit,
@@ -177,6 +179,12 @@ fun ArtistListScreen(
                     } else null,
                 )
             }
+            if (recentResumePoints.isNotEmpty() && singleArtistId == null) {
+                ContinueListeningSection(
+                    resumePoints = recentResumePoints,
+                    onResumeClick = onContinueListeningClick,
+                )
+            }
             if (liveArtists.isNotEmpty()) {
                 LiveNowSection(artists = liveArtists, onLiveClick = onLiveClick)
             }
@@ -274,33 +282,7 @@ private fun ArtistCard(
                     .fillMaxWidth()
                     .aspectRatio(1f),
             ) {
-                artist.bestImageUrl?.let { url ->
-                    AsyncImage(
-                        model = url,
-                        contentDescription = artist.displayName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } ?: Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary,
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = artist.displayName.take(2).uppercase(),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                    )
-                }
+                ArtistThumbnail(artist = artist, modifier = Modifier.fillMaxSize())
             }
             Row(
                 modifier = Modifier
@@ -335,6 +317,142 @@ private fun ArtistCard(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Square artist thumbnail (Coil avatar or gradient initials), reused by the grid
+ *  cards and the "Continue listening" row. */
+@Composable
+private fun ArtistThumbnail(
+    artist: Artist,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        artist.bestImageUrl?.let { url ->
+            AsyncImage(
+                model = url,
+                contentDescription = artist.displayName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } ?: Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary,
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = artist.displayName.take(2).uppercase(),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+            )
+        }
+    }
+}
+
+/** Horizontal "Continue listening" row: recently played artists with one-tap resume. */
+@Composable
+private fun ContinueListeningSection(
+    resumePoints: List<MainViewModel.ResumePoint>,
+    onResumeClick: (MainViewModel.ResumePoint) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    ) {
+        Text(
+            text = "Continue listening",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(
+                items = resumePoints,
+                key = { it.artist.id + "|" + it.tracks[it.index].id },
+            ) { rp ->
+                ContinueListeningCard(
+                    resumePoint = rp,
+                    onClick = { onResumeClick(rp) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContinueListeningCard(
+    resumePoint: MainViewModel.ResumePoint,
+    onClick: () -> Unit,
+) {
+    val track = resumePoint.tracks.getOrNull(resumePoint.index)
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(140.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            ArtistThumbnail(artist = resumePoint.artist, modifier = Modifier.fillMaxSize())
+            // Resume affordance overlay.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = "Resume",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = resumePoint.artist.displayName,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (track != null) {
+            Text(
+                text = track.title,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

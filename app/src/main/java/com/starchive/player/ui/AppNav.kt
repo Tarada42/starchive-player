@@ -233,6 +233,7 @@ fun AppNav(
     val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
     val liveArtists by viewModel.liveArtists.collectAsStateWithLifecycle()
     val artistListLayout = viewModel.artistListLayout.collectAsStateWithLifecycle()
+    val recentResumePoints by viewModel.recentResumePoints.collectAsStateWithLifecycle()
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
     var liveQualityArtist by remember { mutableStateOf<Artist?>(null) }
 
@@ -462,6 +463,7 @@ fun AppNav(
                                     isDark = isDark,
                                     liveArtists = liveArtists,
                                     layoutMode = artistListLayout.value,
+                                    recentResumePoints = recentResumePoints,
                                     onSortChange = viewModel::setArtistSort,
                                     onArtistClick = { artist ->
                                         selectedArtist = artist
@@ -470,6 +472,10 @@ fun AppNav(
                                     },
                                     onLiveClick = { artist ->
                                         liveQualityArtist = artist
+                                    },
+                                    onContinueListeningClick = { rp ->
+                                        manager.play(rp.tracks, rp.index, rp.positionMs)
+                                        navController.navigate(PlayerRoute)
                                     },
                                     onToggleFavorite = { artist ->
                                         viewModel.toggleFavoriteArtist(artist)
