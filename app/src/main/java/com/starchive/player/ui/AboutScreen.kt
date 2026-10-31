@@ -101,10 +101,6 @@ fun AboutScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 AboutLinkRow(
-                    label = "Find us on Twitch",
-                    url = "https://www.twitch.tv/team/stellartransmissionscrew",
-                )
-                AboutLinkRow(
                     label = "Join our Discord",
                     url = "https://discord.gg/xg9yEAv",
                 )
