@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,10 +37,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,6 +70,8 @@ fun PlayerScreen(
     isFavorite: Boolean,
     positionMs: Long,
     durationMs: Long,
+    sleepTimerMinutes: Int?,
+    sleepTimerRemainingMs: Long?,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -76,6 +82,7 @@ fun PlayerScreen(
     onToggleFavorite: () -> Unit,
     onShare: () -> Unit,
     onStop: () -> Unit,
+    onSetSleepTimer: (Int?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -84,7 +91,7 @@ fun PlayerScreen(
                 title = { Text("Now Playing") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbage")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -142,7 +149,7 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = track?.title ?: "Intet spor",
+                    text = track?.title ?: "No track",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -193,10 +200,10 @@ fun PlayerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onPrev, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.SkipPrevious, contentDescription = "Forrige", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = onSkipBackward, modifier = Modifier.size(52.dp)) {
-                        Icon(Icons.Filled.Replay30, contentDescription = "30 sek tilbage", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.Filled.Replay30, contentDescription = "Back 30 seconds", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                     }
                     Box(
                         modifier = Modifier
@@ -212,16 +219,16 @@ fun PlayerScreen(
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Afspil",
+                            contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = Color.White,
                             modifier = Modifier.size(48.dp),
                         )
                     }
                     IconButton(onClick = onSkipForward, modifier = Modifier.size(52.dp)) {
-                        Icon(Icons.Filled.Forward30, contentDescription = "30 sek frem", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.Filled.Forward30, contentDescription = "Forward 30 seconds", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.SkipNext, contentDescription = "Næste", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.Filled.SkipNext, contentDescription = "Next", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                     }
                 }
 
@@ -237,7 +244,7 @@ fun PlayerScreen(
                     IconButton(onClick = onToggleFavorite, modifier = Modifier.size(56.dp)) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = if (isFavorite) "Fjern favorit" else "Tilføj favorit",
+                            contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
                             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(36.dp),
                         )
@@ -257,12 +264,20 @@ fun PlayerScreen(
                     IconButton(onClick = onShare, modifier = Modifier.size(56.dp)) {
                         Icon(
                             imageVector = Icons.Filled.Share,
-                            contentDescription = "Del",
+                            contentDescription = "Share",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(32.dp),
                         )
                     }
                 }
+
+                Spacer(Modifier.height(8.dp))
+
+                SleepTimerControl(
+                    selectedMinutes = sleepTimerMinutes,
+                    remainingMs = sleepTimerRemainingMs,
+                    onSet = onSetSleepTimer,
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -280,6 +295,54 @@ private fun formatTime(ms: Long): String {
         "%d:%02d:%02d".format(hours, minutes, seconds)
     } else {
         "%d:%02d".format(minutes, seconds)
+    }
+}
+
+@Composable
+private fun SleepTimerControl(
+    selectedMinutes: Int?,
+    remainingMs: Long?,
+    onSet: (Int?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val label = when {
+        selectedMinutes == null -> "Sleep"
+        remainingMs != null && remainingMs > 0 -> {
+            val minutesRemaining = ((remainingMs + 59_999L) / 60_000L).toInt()
+            "Sleep ${minutesRemaining}m"
+        }
+        else -> "Sleep ${selectedMinutes}m"
+    }
+    val options = listOf(
+        null to "Off",
+        15 to "15 min",
+        30 to "30 min",
+        45 to "45 min",
+        60 to "60 min",
+    )
+    Box {
+        TextButton(onClick = { expanded = true }) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            options.forEach { (minutes, text) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        onSet(minutes)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 

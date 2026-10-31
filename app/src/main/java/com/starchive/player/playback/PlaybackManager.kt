@@ -2,18 +2,21 @@ package com.starchive.player.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.starchive.player.StArchiveApp
+import com.google.common.util.concurrent.ListenableFuture
 import com.starchive.player.data.DownloadManager
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
-import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +49,12 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs
 
+    private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
+    val sleepTimerMinutes: StateFlow<Int?> = _sleepTimerMinutes
+
+    private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
+    val sleepTimerRemainingMs: StateFlow<Long?> = _sleepTimerRemainingMs
+
     private var queue: List<Track> = emptyList()
     private var pendingPlay: Pair<List<Track>, Int>? = null
     private var lastPersistedTrackId: String? = null
@@ -77,7 +86,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
         } else {
             _positionMs.value.coerceAtLeast(0L)
         }
-        play(tracks, index, positionMs)
+        play(tracks, index, positionMs, cancelSleepTimer = false)
     }
 
     fun connect() {
@@ -90,6 +99,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
             c.addListener(deviceInfoListener)
             wasRemotePlayback = c.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE
             startPositionTicker()
+            startSleepTimerTicker()
             pendingPlay?.let { (tracks, index) ->
                 pendingPlay = null
                 play(tracks, index)
@@ -98,13 +108,20 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     }
 
     /** Play [tracks] starting at [startIndex]. When [startPositionMs] > 0, resume at
-     *  that position within the starting track (for last-played / favourite-DJ resume). */
-    fun play(tracks: List<Track>, startIndex: Int, startPositionMs: Long = 0L) {
+     *  that position within the starting track (for last-played / favourite-DJ resume).
+     *  A new user playback session cancels any active sleep timer. */
+    fun play(
+        tracks: List<Track>,
+        startIndex: Int,
+        startPositionMs: Long = 0L,
+        cancelSleepTimer: Boolean = true,
+    ) {
         val c = controller
         if (c == null) {
             pendingPlay = tracks to startIndex
             return
         }
+        if (cancelSleepTimer) cancelSleepTimer()
         queue = tracks
         val items = tracks.map { it.toMediaItemWithLocal(downloadManager) }
         c.setMediaItems(items, startIndex, startPositionMs.coerceAtLeast(0L))
@@ -136,6 +153,70 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
         _isPlaying.value = false
         _positionMs.value = 0L
         scope.launch { repository.clearLastPlayback() }
+    }
+
+    /** Arms the sleep timer for [minutes] (15/30/45/60). 0 or negative cancels. */
+    fun setSleepTimer(minutes: Int) {
+        if (minutes > 0) {
+            sendSleepTimerCommand(PlaybackService.COMMAND_SET_SLEEP_TIMER) { extras ->
+                extras.putInt(PlaybackService.EXTRA_MINUTES, minutes)
+            }
+            _sleepTimerMinutes.value = minutes
+            _sleepTimerRemainingMs.value = minutes * 60_000L
+        } else {
+            cancelSleepTimer()
+        }
+    }
+
+    /** Cancels an armed sleep timer and clears the UI state. */
+    fun cancelSleepTimer() {
+        sendSleepTimerCommand(PlaybackService.COMMAND_CANCEL_SLEEP_TIMER)
+        _sleepTimerMinutes.value = null
+        _sleepTimerRemainingMs.value = null
+    }
+
+    private fun sendSleepTimerCommand(
+        action: String,
+        configureExtras: (Bundle) -> Unit = {},
+    ) {
+        val c = controller ?: return
+        val extras = Bundle().apply(configureExtras)
+        val command = SessionCommand(action, extras)
+        val future: ListenableFuture<SessionResult> = c.sendCustomCommand(command, Bundle.EMPTY)
+        future.addListener({
+            runCatching { future.get() }
+        }, { runnable -> scope.launch { withContext(Dispatchers.Main) { runnable.run() } } })
+    }
+
+    /** Polls the service for the remaining sleep time while a timer is active. */
+    private fun startSleepTimerTicker() {
+        scope.launch {
+            while (true) {
+                delay(5_000L)
+                if (_sleepTimerMinutes.value != null) {
+                    querySleepTimerRemaining()
+                }
+            }
+        }
+    }
+
+    private fun querySleepTimerRemaining() {
+        val c = controller ?: return
+        val command = SessionCommand(PlaybackService.COMMAND_GET_SLEEP_TIMER_REMAINING, Bundle.EMPTY)
+        val future: ListenableFuture<SessionResult> = c.sendCustomCommand(command, Bundle.EMPTY)
+        future.addListener({
+            val result = runCatching { future.get() }.getOrNull() ?: return@addListener
+            if (result.resultCode == SessionResult.RESULT_SUCCESS) {
+                val extras = result.extras
+                if (extras.containsKey(PlaybackService.EXTRA_REMAINING_MS)) {
+                    _sleepTimerRemainingMs.value = extras.getLong(PlaybackService.EXTRA_REMAINING_MS)
+                } else {
+                    // Timer has expired or was cancelled.
+                    _sleepTimerMinutes.value = null
+                    _sleepTimerRemainingMs.value = null
+                }
+            }
+        }, { runnable -> scope.launch { withContext(Dispatchers.Main) { runnable.run() } } })
     }
 
     fun release() {

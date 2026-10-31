@@ -219,6 +219,8 @@ fun AppNav(
     val isPlaying by manager.isPlaying.collectAsStateWithLifecycle()
     val position by manager.positionMs.collectAsStateWithLifecycle()
     val duration by manager.durationMs.collectAsStateWithLifecycle()
+    val sleepTimerMinutes by manager.sleepTimerMinutes.collectAsStateWithLifecycle()
+    val sleepTimerRemainingMs by manager.sleepTimerRemainingMs.collectAsStateWithLifecycle()
 
     val artistsState by viewModel.artists.collectAsStateWithLifecycle()
     val tracksState by viewModel.tracks.collectAsStateWithLifecycle()
@@ -624,6 +626,8 @@ fun AppNav(
                             isFavorite = isFav,
                             positionMs = position,
                             durationMs = duration,
+                            sleepTimerMinutes = sleepTimerMinutes,
+                            sleepTimerRemainingMs = sleepTimerRemainingMs,
                             onBack = { navController.popBackStack() },
                             onTogglePlay = { manager.togglePlayPause() },
                             onSeek = { ms -> manager.seekTo(ms) },
@@ -634,6 +638,9 @@ fun AppNav(
                             onToggleFavorite = { current?.let { viewModel.toggleFavoriteTrack(it) } },
                             onShare = { current?.let { shareTrack(context, it) } },
                             onStop = { manager.stop(); navController.popBackStack() },
+                            onSetSleepTimer = { minutes ->
+                                if (minutes != null) manager.setSleepTimer(minutes) else manager.cancelSleepTimer()
+                            },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

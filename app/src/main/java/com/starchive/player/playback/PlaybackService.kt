@@ -57,6 +57,7 @@ class PlaybackService : MediaSessionService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val repository: Repository by lazy { (application as StArchiveApp).repository }
+    private val sleepTimer by lazy { SleepTimer(serviceScope) { stopPlayback() } }
 
     override fun onCreate() {
         super.onCreate()
@@ -145,6 +146,9 @@ class PlaybackService : MediaSessionService() {
         ): MediaSession.ConnectionResult {
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                 .add(SessionCommand(AaPlaybackClient.COMMAND_GET_PLATFORM_TOKEN, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_SET_SLEEP_TIMER, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_CANCEL_SLEEP_TIMER, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_GET_SLEEP_TIMER_REMAINING, Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
@@ -162,6 +166,28 @@ class PlaybackService : MediaSessionService() {
                     putParcelable(AaPlaybackClient.EXTRA_PLATFORM_TOKEN, session.platformToken)
                 }
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))
+            }
+            when (customCommand.customAction) {
+                COMMAND_SET_SLEEP_TIMER -> {
+                    val minutes = customCommand.customExtras.getInt(EXTRA_MINUTES, 0)
+                    if (minutes > 0) {
+                        sleepTimer.start(minutes * 60_000L)
+                    } else {
+                        sleepTimer.cancel()
+                    }
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
+                }
+                COMMAND_CANCEL_SLEEP_TIMER -> {
+                    sleepTimer.cancel()
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
+                }
+                COMMAND_GET_SLEEP_TIMER_REMAINING -> {
+                    val extras = Bundle()
+                    sleepTimer.remainingMs()?.let { remainingMs ->
+                        extras.putLong(EXTRA_REMAINING_MS, remainingMs)
+                    }
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))
+                }
             }
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
         }
@@ -215,6 +241,19 @@ class PlaybackService : MediaSessionService() {
         to.prepare()
     }
 
+    /**
+     * Service-side stop: pause, reset to the beginning, and clear the persisted resume
+     * state. This mirrors [PlaybackManager.stop] and is invoked by the sleep timer on
+     * expiry (and only there). It works for the local player and for CastPlayer because
+     * both support pause/seekTo.
+     */
+    private fun stopPlayback() {
+        val p = player ?: return
+        p.pause()
+        p.seekTo(0L)
+        serviceScope.launch { repository.clearLastPlayback() }
+    }
+
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
         mediaSession
 
@@ -226,6 +265,7 @@ class PlaybackService : MediaSessionService() {
         kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
             runCatching { repository.clearLastPlayback() }
         }
+        sleepTimer.cancel()
         serviceScope.cancel()
         castContext?.sessionManager?.removeSessionManagerListener(typedCastSessionListener, CastSession::class.java)
         mediaSession?.run {
@@ -237,5 +277,13 @@ class PlaybackService : MediaSessionService() {
         castPlayer?.release()
         castPlayer = null
         super.onDestroy()
+    }
+
+    companion object {
+        const val COMMAND_SET_SLEEP_TIMER = "com.starchive.player.playback.SET_SLEEP_TIMER"
+        const val COMMAND_CANCEL_SLEEP_TIMER = "com.starchive.player.playback.CANCEL_SLEEP_TIMER"
+        const val COMMAND_GET_SLEEP_TIMER_REMAINING = "com.starchive.player.playback.GET_SLEEP_TIMER_REMAINING"
+        const val EXTRA_MINUTES = "com.starchive.player.playback.EXTRA_MINUTES"
+        const val EXTRA_REMAINING_MS = "com.starchive.player.playback.EXTRA_REMAINING_MS"
     }
 }
