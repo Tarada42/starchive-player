@@ -22,6 +22,8 @@ import com.starchive.player.R
 import com.starchive.player.StArchiveApp
 import com.starchive.player.data.Artist
 import com.starchive.player.data.SettingsDataStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * Background poll that checks whether any favourited DJ has gone live and posts a

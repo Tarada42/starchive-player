@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.starchive.player.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
