@@ -2,6 +2,7 @@ package com.starchive.player.playback
 
 import android.content.ComponentName
 import android.content.Context
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -72,6 +73,13 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
         }
         queue = tracks
         val items = tracks.map { it.toMediaItemWithLocal(downloadManager) }
+        // When casting, force the receiver to unload the currently-playing item before
+        // queueing the new one. A paused/live CastPlayer can otherwise keep the old
+        // MediaItem loaded in the Chromecast session even after setMediaItems() is sent.
+        if (c.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) {
+            c.stop()
+            c.clearMediaItems()
+        }
         c.setMediaItems(items, startIndex, startPositionMs.coerceAtLeast(0L))
         c.prepare()
         c.play()
