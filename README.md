@@ -14,6 +14,18 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 ---
 
+## Download
+
+Grab the latest Android app. The links below always point to the most recent build — no need to hunt for a version.
+
+- **Latest debug APK:** [STArchivePlayer-debug.apk](https://github.com/Tarada42/starchive-player/releases/latest/download/STArchivePlayer-debug.apk) (fast iteration build; ideal for daily use)
+- **Latest release APK:** [STArchivePlayer-release.apk](https://github.com/Tarada42/starchive-player/releases/latest/download/STArchivePlayer-release.apk) (optimized build; appears once a release build is attached)
+- **All releases / release notes:** [Releases](https://github.com/Tarada42/starchive-player/releases)
+
+> Sideloading must be enabled on your device (Settings → Security → Install unknown apps). Allow the install from wherever you opened the file.
+
+---
+
 ## Features
 
 - **Browse & stream** every DJ's recorded sets (audio-only MP4) — grid or list view with date/name sorting
@@ -52,7 +64,7 @@ Install on a connected device:
 adb install -r app/build/outputs/apk/debug/STArchivePlayer-1.4.4-debug.apk
 ```
 
-The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.4.4-debug.apk` / `-release.apk`). To share a ready-to-install build, run `assembleRelease` and publish it as a [GitHub Release](https://github.com/Tarada42/starchive-player/releases).
+The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.4.4-debug.apk` / `-release.apk`). To share a build with the public, attach it to a [GitHub Release](https://github.com/Tarada42/starchive-player/releases) using the **stable filenames** `STArchivePlayer-debug.apk` / `STArchivePlayer-release.apk` — the Download links above stay correct automatically.
 
 ---
 
