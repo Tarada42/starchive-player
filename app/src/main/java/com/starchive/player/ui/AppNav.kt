@@ -13,12 +13,15 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -110,6 +113,14 @@ val LocalDrawerState = staticCompositionLocalOf<DrawerState> {
 }
 
 /**
+ * Provides the top-level [NavHostController] so screen-level action bars can navigate
+ * (e.g., the overflow menu) without passing the controller through every screen.
+ */
+val LocalNavController = staticCompositionLocalOf<NavHostController> {
+    error("LocalNavController not provided")
+}
+
+/**
  * ☰ Hamburger icon used by each primary screen to open the shared side drawer.
  */
 @Composable
@@ -123,6 +134,58 @@ fun DrawerMenuButton(
             imageVector = Icons.Filled.Menu,
             contentDescription = contentDescription,
             tint = MaterialTheme.colorScheme.onBackground,
+        )
+    }
+}
+
+/**
+ * ⋮ Overflow menu used by each primary screen to expose top-level destinations that
+ * also live in the navigation drawer (Settings, About).
+ */
+@Composable
+fun OverflowMenuButton(
+    contentDescription: String = "More options",
+) {
+    val navController = LocalNavController.current
+    var expanded by remember { mutableStateOf(false) }
+
+    IconButton(onClick = { expanded = true }) {
+        Icon(
+            imageVector = Icons.Filled.MoreVert,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onBackground,
+        )
+    }
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = { expanded = false },
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        DropdownMenuItem(
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = null,
+                )
+            },
+            text = { Text("Settings") },
+            onClick = {
+                expanded = false
+                navController.navigate(SettingsRoute)
+            },
+        )
+        DropdownMenuItem(
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                )
+            },
+            text = { Text("About") },
+            onClick = {
+                expanded = false
+                navController.navigate(AboutRoute)
+            },
         )
     }
 }
@@ -269,7 +332,10 @@ fun AppNav(
     val showBottomBar = isPrimaryRoute
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    CompositionLocalProvider(LocalDrawerState provides drawerState) {
+    CompositionLocalProvider(
+        LocalDrawerState provides drawerState,
+        LocalNavController provides navController,
+    ) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = isPrimaryRoute,

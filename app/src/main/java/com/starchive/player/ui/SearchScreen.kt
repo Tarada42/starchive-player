@@ -74,6 +74,7 @@ fun SearchScreen(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
                 navigationIcon = { DrawerMenuButton() },
+                actions = { OverflowMenuButton() },
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
