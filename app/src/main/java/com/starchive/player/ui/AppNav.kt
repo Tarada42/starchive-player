@@ -487,7 +487,6 @@ fun AppNav(
                                     sortAscending = sortAscending,
                                     singleArtistId = singleArtistId,
                                     isDark = isDark,
-                                    liveArtists = liveArtists,
                                     layoutMode = artistListLayout.value,
                                     recentResumePoints = recentResumePoints,
                                     onSortChange = viewModel::setArtistSort,
@@ -495,9 +494,6 @@ fun AppNav(
                                         selectedArtist = artist
                                         viewModel.loadTracks(artist)
                                         navController.navigate(ArtistDetailRoute(artist.id, artist.displayName))
-                                    },
-                                    onLiveClick = { artist ->
-                                        liveQualityArtist = artist
                                     },
                                     onContinueListeningClick = { rp ->
                                         manager.play(rp.tracks, rp.index, rp.positionMs)
