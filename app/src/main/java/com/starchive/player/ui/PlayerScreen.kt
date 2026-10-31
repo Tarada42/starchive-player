@@ -95,6 +95,11 @@ fun PlayerScreen(
                     }
                 },
                 actions = {
+                    SleepTimerControl(
+                        selectedMinutes = sleepTimerMinutes,
+                        remainingMs = sleepTimerRemainingMs,
+                        onSet = onSetSleepTimer,
+                    )
                     IconButton(onClick = onStop) {
                         Icon(Icons.Filled.Close, contentDescription = "Stop")
                     }
@@ -271,13 +276,6 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
-
-                SleepTimerControl(
-                    selectedMinutes = sleepTimerMinutes,
-                    remainingMs = sleepTimerRemainingMs,
-                    onSet = onSetSleepTimer,
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
