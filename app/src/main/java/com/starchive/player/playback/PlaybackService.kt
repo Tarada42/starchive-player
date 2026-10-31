@@ -175,7 +175,7 @@ class PlaybackService : MediaSessionService() {
         castPlayer = cp
         transferPlaybackState(from = old, to = cp)
         old.pause()
-        rebuildSession(cp)
+        mediaSession?.setPlayer(cp)
         player = cp
         isCasting = true
     }
@@ -189,7 +189,7 @@ class PlaybackService : MediaSessionService() {
         old.pause()
         castPlayer?.release()
         castPlayer = null
-        rebuildSession(lp)
+        mediaSession?.setPlayer(lp)
         player = lp
         isCasting = false
     }
@@ -209,15 +209,6 @@ class PlaybackService : MediaSessionService() {
         }
         to.playWhenReady = from.playWhenReady
         to.prepare()
-    }
-
-    /** MediaSession can't swap its player in place — release and rebuild around [p]. */
-    private fun rebuildSession(p: Player) {
-        mediaSession?.release()
-        mediaSession = MediaSession.Builder(this, p)
-            .setSessionActivity(openAppIntent!!)
-            .setCallback(mediaSessionCallback)
-            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
