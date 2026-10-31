@@ -2,6 +2,8 @@
 build/
 e/build/
 local.properties
+.env
+.env.local
 .idea/
 *.iml
 .DS_Store
