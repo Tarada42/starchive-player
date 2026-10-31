@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -50,25 +51,23 @@ fun SettingsScreen(
     val context = LocalContext.current
     val liveNotifications by viewModel.liveNotifications.collectAsStateWithLifecycle()
 
-    var permissionDenied by remember { mutableStateOf(false) }
-    var permissionChecked by remember { mutableStateOf(false) }
+    // Triggers recompositions after the runtime permission dialog returns, so the
+    // hint re-checks the real POST_NOTIFICATIONS grant state on the spot.
+    var permissionRefresh by remember { mutableStateOf(0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        permissionDenied = !granted
-        permissionChecked = true
+    ) { _ ->
+        permissionRefresh++
     }
 
-    fun isPermissionGranted(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+    val isPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
     }
 
     Scaffold(
@@ -76,7 +75,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Settings",
+                        stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                     )
@@ -85,7 +84,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.content_description_back),
                         )
                     }
                 },
@@ -114,12 +113,12 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Live notifications",
+                        text = stringResource(R.string.live_notifications_title),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Notify when a favorite DJ goes live",
+                        text = stringResource(R.string.live_notifications_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -127,7 +126,7 @@ fun SettingsScreen(
                 Switch(
                     checked = liveNotifications,
                     onCheckedChange = { enabled ->
-                        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !isPermissionGranted()) {
+                        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !isPermissionGranted) {
                             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                         viewModel.setLiveNotifications(enabled)
@@ -135,11 +134,10 @@ fun SettingsScreen(
                 )
             }
 
-            if (permissionChecked && (permissionDenied || (liveNotifications && !isPermissionGranted()))) {
+            if (liveNotifications && !isPermissionGranted) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Notifications are disabled for this app. " +
-                        "You can still schedule checks, but no notifications will appear until permission is granted.",
+                    text = stringResource(R.string.live_notifications_permission_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -150,8 +148,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Note: Android requires a minimum 15-minute background polling interval, " +
-                    "so a notification may arrive up to 15 minutes after a DJ actually goes live.",
+                text = stringResource(R.string.live_notifications_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

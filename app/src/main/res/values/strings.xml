@@ -7,6 +7,14 @@
     <string name="live_notification_text">is live now</string>
     <string name="live_notification_playing_title">%1$s — LIVE</string>
 
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="content_description_back">Back</string>
+    <string name="live_notifications_title">Live notifications</string>
+    <string name="live_notifications_subtitle">Notify when a favorite DJ goes live</string>
+    <string name="live_notifications_permission_hint">Notifications are disabled for this app. You can still schedule checks, but no notifications will appear until permission is granted.</string>
+    <string name="live_notifications_note">Note: Android requires a minimum 15-minute background polling interval, so a notification may arrive up to 15 minutes after a DJ actually goes live.</string>
+
     <!-- Android Auto -->
     <string name="aa_home_title">STArchive</string>
     <string name="aa_artists">Artists</string>
