@@ -70,16 +70,19 @@ class LiveNotificationsWorker(
         }.getOrDefault(emptySet())
 
         // Only notify for DJs that were not in the previous run's live set.
+        // Compute this from the UNPRUNED ledger so we don't lose notifications.
         val newlyLive = liveFavorites.filter { it.id.lowercase() !in lastNotified }
 
-        // Always prune the ledger to the current live set first, independent of
+        // Always prune the ledger to DJs that are still live, independent of
         // permission state. This clears DJs that stopped being live so they will
         // notify again the next time they go live, while keeping DJs that stayed
-        // live in the ledger (anti-spam).
-        runCatching { settings.setLastNotifiedLiveArtists(currentlyLiveIds) }
+        // live in the ledger (anti-spam). Newly-live DJs are NOT added here.
+        val pruned = lastNotified intersect currentlyLiveIds
+        runCatching { settings.setLastNotifiedLiveArtists(pruned) }
 
         // On Android 13+ the user may have denied the permission. Keep the schedule
-        // but don't post anything visible.
+        // but don't post anything visible, and don't add newly-live DJs to the
+        // ledger (they must notify after the user grants permission).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(
                 context,
@@ -96,6 +99,10 @@ class LiveNotificationsWorker(
         newlyLive.forEach { artist ->
             postNotification(context, notificationManager, artist)
         }
+
+        // Now that we've actually posted, persist the full current live set so
+        // these DJs won't notify again while they stay live.
+        runCatching { settings.setLastNotifiedLiveArtists(currentlyLiveIds) }
 
         return Result.success()
     }
