@@ -5,6 +5,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.0.20"
 }
 
+import java.util.Properties
+
+val keystoreProperties = rootProject.file("keystore.properties")
+
 android {
     namespace = "com.starchive.player"
     compileSdk = 35
@@ -18,9 +22,20 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    val releaseSigning = if (keystoreProperties.exists()) {
+        val props = Properties().apply { keystoreProperties.inputStream().use { load(it) } }
+        signingConfigs.create("release") {
+            storeFile = file(props["storeFile"] as String)
+            storePassword = props["storePassword"] as String
+            keyAlias = props["keyAlias"] as String
+            keyPassword = props["keyPassword"] as String
+        }
+    } else null
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
