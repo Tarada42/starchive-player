@@ -106,7 +106,7 @@ fun AboutScreen(
                 )
                 AboutLinkRow(
                     label = "Web app",
-                    url = "https://testplayer.streambox.space/",
+                    url = "https://webapp.streambox.space/",
                 )
             }
             Text(

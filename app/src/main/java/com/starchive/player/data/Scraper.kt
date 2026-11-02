@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 /**
- * Fetches STArchive data from the hosted web-app API at https://webapp-copy-silk.vercel.app/
+ * Fetches STArchive data from the hosted web-app API at https://webapp.streambox.space/
  *
  * Endpoints (owned by us, cached + refreshed daily server-side):
  *   GET /api/artists                  -> [{ id, name, displayName, date }] newest-first
@@ -204,7 +204,7 @@ class Scraper(
         raw.replace('_', ' ').trim().replace(Regex("\\s+"), " ")
 
     companion object {
-        const val DEFAULT_BASE = "https://webapp-copy-silk.vercel.app"
+        const val DEFAULT_BASE = "https://webapp.streambox.space"
         private const val baseStaticUrl = "https://starchive.streambox.space"
         private const val USER_AGENT = "STArchivePlayer/1.0 (Android)"
     }
