@@ -17,7 +17,7 @@ android {
         applicationId = "com.starchive.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
+        versionCode = 9
         versionName = "1.5.0"
         vectorDrawables { useSupportLibrary = true }
     }
