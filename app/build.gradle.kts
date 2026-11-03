@@ -11,12 +11,12 @@ val keystoreProperties = rootProject.file("keystore.properties")
 
 android {
     namespace = "com.starchive.player"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.starchive.player"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 8
         versionName = "1.5.0"
         vectorDrawables { useSupportLibrary = true }
