@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import android.view.ContextThemeWrapper
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.mediarouter.app.MediaRouteButton
 import com.google.android.gms.cast.framework.CastButtonFactory
@@ -260,7 +261,11 @@ fun PlayerScreen(
                     // is shown for live streams as well as archive tracks (phone only).
                     AndroidView(
                         factory = { ctx ->
-                            MediaRouteButton(ctx).apply {
+                            // Wrap the context in a theme overlay that tints the cast icon
+                            // from the current control color; the default drawable is
+                            // light-background tinted and can be invisible on dark themes.
+                            val themedCtx = ContextThemeWrapper(ctx, R.style.Theme_StArchivePlayer_Cast)
+                            MediaRouteButton(themedCtx).apply {
                                 CastButtonFactory.setUpMediaRouteButton(ctx, this)
                             }
                         },
