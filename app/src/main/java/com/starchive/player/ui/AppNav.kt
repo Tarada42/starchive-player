@@ -499,6 +499,8 @@ fun AppNav(
                                         manager.play(rp.tracks, rp.index, rp.positionMs)
                                         navController.navigate(PlayerRoute)
                                     },
+                                    onRemoveResumePoint = viewModel::removeResumePoint,
+                                    onClearResumePoints = viewModel::clearResumePoints,
                                     onToggleFavorite = { artist ->
                                         viewModel.toggleFavoriteArtist(artist)
                                     },

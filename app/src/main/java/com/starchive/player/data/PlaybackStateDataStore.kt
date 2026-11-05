@@ -123,6 +123,22 @@ class PlaybackStateDataStore(private val context: Context) {
         }
     }
 
+    /** Remove a single track's resume entry from the recent history. */
+    suspend fun removeRecent(trackId: String) {
+        context.playbackStore.edit { prefs ->
+            val history = decodeRecentHistory(prefs[recentHistoryKey]).toMutableList()
+            history.removeAll { it.trackId == trackId }
+            prefs[recentHistoryKey] = encodeRecentHistory(history)
+        }
+    }
+
+    /** Clear the entire recent-history list. */
+    suspend fun clearRecentHistory() {
+        context.playbackStore.edit { prefs ->
+            prefs[recentHistoryKey] = encodeRecentHistory(emptyList())
+        }
+    }
+
     private fun decodeRecentHistory(raw: String?): List<RecentEntry> {
         if (raw.isNullOrBlank()) return emptyList()
         return try {

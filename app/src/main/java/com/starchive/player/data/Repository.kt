@@ -265,6 +265,10 @@ class Repository(
 
     suspend fun setSingleArtist(artistId: String?) = playbackStateDataStore.setSingleArtist(artistId)
 
+    suspend fun removeRecent(trackId: String) = playbackStateDataStore.removeRecent(trackId)
+
+    suspend fun clearRecentHistory() = playbackStateDataStore.clearRecentHistory()
+
     suspend fun toggleFavoriteTrack(track: Track) = favoritesDataStore.toggleTrack(track)
     suspend fun toggleFavoriteArtist(artist: Artist) = favoritesDataStore.toggleArtist(artist)
     suspend fun recordSearch(query: String) = searchHistoryDataStore.record(query)

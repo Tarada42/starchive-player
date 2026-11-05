@@ -1,7 +1,9 @@
 package com.starchive.player.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +39,8 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ViewHeadline
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -48,6 +52,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +82,8 @@ fun ArtistListScreen(
     onSortChange: (ArtistSort) -> Unit,
     onArtistClick: (Artist) -> Unit,
     onContinueListeningClick: (MainViewModel.ResumePoint) -> Unit = {},
+    onRemoveResumePoint: (String) -> Unit = {},
+    onClearResumePoints: () -> Unit = {},
     onToggleFavorite: (Artist) -> Unit,
     onSetSingleArtist: (Artist?) -> Unit,
     onToggleTheme: () -> Unit,
@@ -180,6 +188,8 @@ fun ArtistListScreen(
                 ContinueListeningSection(
                     resumePoints = recentResumePoints,
                     onResumeClick = onContinueListeningClick,
+                    onRemoveResumePoint = onRemoveResumePoint,
+                    onClearResumePoints = onClearResumePoints,
                 )
             }
             // Banner when the app is pinned to a single artist: explains the front page
@@ -361,6 +371,8 @@ private fun ArtistThumbnail(
 private fun ContinueListeningSection(
     resumePoints: List<MainViewModel.ResumePoint>,
     onResumeClick: (MainViewModel.ResumePoint) -> Unit,
+    onRemoveResumePoint: (String) -> Unit,
+    onClearResumePoints: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -386,28 +398,37 @@ private fun ContinueListeningSection(
                 ContinueListeningCard(
                     resumePoint = rp,
                     onClick = { onResumeClick(rp) },
+                    onRemove = { onRemoveResumePoint(rp.tracks[rp.index].id) },
+                    onClearAll = onClearResumePoints,
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContinueListeningCard(
     resumePoint: MainViewModel.ResumePoint,
     onClick: () -> Unit,
+    onRemove: () -> Unit,
+    onClearAll: () -> Unit,
 ) {
     val track = resumePoint.tracks.getOrNull(resumePoint.index)
+    var expanded by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
-            .width(140.dp)
+            .width(72.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { expanded = true },
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(140.dp)
+                .size(72.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
@@ -416,8 +437,8 @@ private fun ContinueListeningCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(8.dp)
-                    .size(32.dp)
+                    .padding(4.dp)
+                    .size(22.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)),
                 contentAlignment = Alignment.Center,
@@ -426,14 +447,33 @@ private fun ContinueListeningCard(
                     imageVector = Icons.Filled.PlayArrow,
                     contentDescription = "Resume",
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Remove") },
+                    onClick = {
+                        onRemove()
+                        expanded = false
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Clear all") },
+                    onClick = {
+                        onClearAll()
+                        expanded = false
+                    },
                 )
             }
         }
-        Spacer(Modifier.size(6.dp))
+        Spacer(Modifier.size(4.dp))
         Text(
             text = resumePoint.artist.displayName,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -442,7 +482,7 @@ private fun ContinueListeningCard(
         if (track != null) {
             Text(
                 text = track.title,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

@@ -127,6 +127,16 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Remove a single track's resume entry from the recent history. */
+    fun removeResumePoint(trackId: String) {
+        viewModelScope.launch { repo.removeRecent(trackId) }
+    }
+
+    /** Remove all resume entries from the continue-listening list. */
+    fun clearResumePoints() {
+        viewModelScope.launch { repo.clearRecentHistory() }
+    }
+
     fun setSingleArtist(artistId: String?) {
         viewModelScope.launch { repo.setSingleArtist(artistId) }
     }
