@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,7 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewHeadline
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +31,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,10 +43,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Track
+
+private enum class FavoriteArtistLayout {
+    GRID,
+    LIST,
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +66,8 @@ fun FavoritesScreen(
     onToggleFavoriteArtist: (Artist) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var artistLayout by rememberSaveable { mutableStateOf(FavoriteArtistLayout.GRID) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -68,7 +82,24 @@ fun FavoritesScreen(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
                 navigationIcon = { DrawerMenuButton() },
-                actions = { OverflowMenuButton() },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            artistLayout = if (artistLayout == FavoriteArtistLayout.GRID) {
+                                FavoriteArtistLayout.LIST
+                            } else {
+                                FavoriteArtistLayout.GRID
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = if (artistLayout == FavoriteArtistLayout.GRID) Icons.Filled.ViewHeadline else Icons.Filled.GridView,
+                            contentDescription = if (artistLayout == FavoriteArtistLayout.GRID) "Switch to list" else "Switch to grid",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    OverflowMenuButton()
+                },
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -116,21 +147,34 @@ fun FavoritesScreen(
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
-                favArtists.chunked(2).forEach { pair ->
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            pair.forEach { artist ->
-                                FavoriteArtistCard(
-                                    artist = artist,
-                                    onClick = { onArtistClick(artist) },
-                                    onToggleFavorite = { onToggleFavoriteArtist(artist) },
-                                    modifier = Modifier.weight(1f),
-                                )
+                if (artistLayout == FavoriteArtistLayout.GRID) {
+                    favArtists.chunked(4).forEach { group ->
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                group.forEach { artist ->
+                                    FavoriteArtistCard(
+                                        artist = artist,
+                                        onClick = { onArtistClick(artist) },
+                                        onToggleFavorite = { onToggleFavoriteArtist(artist) },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                                repeat(4 - group.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
                         }
+                    }
+                } else {
+                    items(favArtists, key = { it.id }) { artist ->
+                        FavoriteArtistListItem(
+                            artist = artist,
+                            onClick = { onArtistClick(artist) },
+                            onToggleFavorite = { onToggleFavoriteArtist(artist) },
+                        )
                     }
                 }
             }
@@ -179,7 +223,8 @@ private fun FavoriteArtistCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(120.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         Brush.linearGradient(
@@ -228,6 +273,70 @@ private fun FavoriteArtistCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteArtistListItem(
+    artist: Artist,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary,
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            artist.bestImageUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = artist.displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } ?: Text(
+                text = artist.displayName.take(2).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+            )
+        }
+        Text(
+            text = artist.displayName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Filled.Favorite,
+                contentDescription = "Remove favorite",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

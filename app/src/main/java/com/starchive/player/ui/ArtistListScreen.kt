@@ -235,7 +235,7 @@ fun ArtistListScreen(
             // row with a thumbnail on the left and the full artist name.
             if (layoutMode == ArtistListLayout.GRID) {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                    columns = GridCells.Fixed(4),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
