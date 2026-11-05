@@ -52,11 +52,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.content.res.Configuration
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.filled.Cast
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.ui.platform.LocalContext
 import com.google.android.gms.cast.framework.CastContext
 import androidx.mediarouter.app.MediaRouteChooserDialog
@@ -86,6 +89,7 @@ fun PlayerScreen(
     onSetSleepTimer: (Int?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Scaffold(
         topBar = {
             TopAppBar(
@@ -120,10 +124,11 @@ fun PlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Artwork card with glow/shadow
+            // Artwork card with glow/shadow. In landscape the full-width square
+            // dominates and pushes the controls off-screen, so shrink it to 25%.
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.85f)
+                    .fillMaxWidth(if (isLandscape) 0.25f else 0.85f)
                     .aspectRatio(1f)
                     .shadow(24.dp, RoundedCornerShape(24.dp))
                     .clip(RoundedCornerShape(24.dp))
@@ -228,6 +233,16 @@ fun PlayerScreen(
                             contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = Color.White,
                             modifier = Modifier.size(48.dp),
+                        )
+                    }
+                    // Stop: ends playback and returns to the track list, same as the
+                    // X in the top bar.
+                    IconButton(onClick = onStop, modifier = Modifier.size(52.dp)) {
+                        Icon(
+                            Icons.Filled.Stop,
+                            contentDescription = "Stop",
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.onBackground,
                         )
                     }
                     IconButton(onClick = onSkipForward, modifier = Modifier.size(52.dp)) {
