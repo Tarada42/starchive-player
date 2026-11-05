@@ -12,6 +12,17 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 > Full overview: **[ABOUT.md](ABOUT.md)** · Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
+## What's new in 1.5.1
+
+- **Cast button fixed** — now a proper Compose button that's visible on all devices, including tablets.
+- **Tablet & landscape layout pass** — artist thumbnails are half the size in grid views (Browse, Live, Favorites); player artwork is smaller in landscape so the controls always fit on screen; a **Stop** button sits beside play/pause.
+- **Grid ↔ list view** — Browse, Live Now, and Favorites now toggle between a dense thumbnail grid and a compact list.
+- **Continue listening** — smaller cards, and long-press any card to **Remove** just that track or **Clear all**.
+- **Rotation fix** — rotating the device no longer jumps back to a previously-played track; playback and resume point stay where you left them.
+- **Playback stability** across the board.
+
+---
+
 ## Screenshots
 
 <div align="center">
