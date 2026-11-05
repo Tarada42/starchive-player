@@ -95,7 +95,7 @@ The look is matched to the STArchive web app palette:
 Android player for the music archive for members of Twitch team **Stellar Transmissions**.
 
 - **Discord:** https://discord.gg/xg9yEAv
-- **Web app:** https://testplayer.streambox.space/
+- **Web app:** https://webapp.streambox.space/
 
 ---
 
