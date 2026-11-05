@@ -267,7 +267,7 @@ fun PlayerScreen(
                                 MediaRouteControllerDialog(context).show()
                             } else {
                                 MediaRouteChooserDialog(context).apply {
-                                    routeSelector = castContext.mergedSelector
+                                    castContext.mergedSelector?.let { routeSelector = it }
                                 }.show()
                             }
                         },
