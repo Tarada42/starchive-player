@@ -12,6 +12,19 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 > Full overview: **[ABOUT.md](ABOUT.md)** · Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
+## Screenshots
+
+<div align="center">
+
+<img src="docs/screenshots/screenshot-01.jpg" width="220" alt="Screenshot 1" />
+<img src="docs/screenshots/screenshot-02.jpg" width="220" alt="Screenshot 2" />
+<img src="docs/screenshots/screenshot-03.jpg" width="220" alt="Screenshot 3" />
+<img src="docs/screenshots/screenshot-04.jpg" width="220" alt="Screenshot 4" />
+<img src="docs/screenshots/screenshot-05.jpg" width="220" alt="Screenshot 5" />
+<img src="docs/screenshots/screenshot-06.jpg" width="220" alt="Screenshot 6" />
+
+</div>
+
 ---
 
 ## Download

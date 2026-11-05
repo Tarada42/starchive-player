@@ -1,12 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.StArchivePlayer" parent="Theme.AppCompat.DayNight.NoActionBar" />
-
-    <!-- Theme overlay for the Cast media-route button. The bare MediaRouteButton
-         uses a default drawable that can render invisible on a dark theme; this
-         overlay force-tints the icon from the current AppCompat control color so
-         it stays visible on phones and tablets in day or night mode. -->
-    <style name="Theme.StArchivePlayer.Cast" parent="Theme.StArchivePlayer">
-        <item name="mediaRouteButtonTint">?attr/colorControlNormal</item>
-    </style>
 </resources>

@@ -56,11 +56,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import android.view.ContextThemeWrapper
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.mediarouter.app.MediaRouteButton
-import com.google.android.gms.cast.framework.CastButtonFactory
-import com.starchive.player.R
+import androidx.compose.material.icons.filled.Cast
+import androidx.compose.ui.platform.LocalContext
+import com.google.android.gms.cast.framework.CastContext
+import androidx.mediarouter.app.MediaRouteChooserDialog
+import androidx.mediarouter.app.MediaRouteControllerDialog
 import com.starchive.player.data.Track
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -259,18 +259,27 @@ fun PlayerScreen(
                     // available, otherwise the standard no-target state. The default Cast
                     // receiver can play both Icecast MP3 and Ogg live mounts, so the button
                     // is shown for live streams as well as archive tracks (phone only).
-                    AndroidView(
-                        factory = { ctx ->
-                            // Wrap the context in a theme overlay that tints the cast icon
-                            // from the current control color; the default drawable is
-                            // light-background tinted and can be invisible on dark themes.
-                            val themedCtx = ContextThemeWrapper(ctx, R.style.Theme_StArchivePlayer_Cast)
-                            MediaRouteButton(themedCtx).apply {
-                                CastButtonFactory.setUpMediaRouteButton(ctx, this)
+                    val context = LocalContext.current
+                    IconButton(
+                        onClick = {
+                            val castContext = CastContext.getSharedInstance(context)
+                            if (castContext.sessionManager.currentCastSession != null) {
+                                MediaRouteControllerDialog(context).show()
+                            } else {
+                                MediaRouteChooserDialog(context).apply {
+                                    routeSelector = castContext.mergedSelector
+                                }.show()
                             }
                         },
                         modifier = Modifier.size(56.dp),
-                    )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cast,
+                            contentDescription = "Cast",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
                     IconButton(onClick = onShare, modifier = Modifier.size(56.dp)) {
                         Icon(
                             imageVector = Icons.Filled.Share,
