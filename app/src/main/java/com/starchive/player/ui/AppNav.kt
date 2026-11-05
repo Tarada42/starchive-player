@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -329,7 +330,7 @@ fun AppNav(
     // OPEN the artist, never start, pause, or replace what's playing). Resume is
     // available through the explicit "Continue" button on the artist screen.
     // The non-single path still resumes the last-played track on a normal cold start.
-    val resumeStarted = remember { mutableStateOf(false) }
+    val resumeStarted = rememberSaveable { mutableStateOf(false) }
     val launchArtists = artistsState
     LaunchedEffect(launchArtists, singleArtistId) {
         if (resumeStarted.value) return@LaunchedEffect
