@@ -73,10 +73,10 @@ git clone <this-repo-url>
 Install on a connected device:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/STArchivePlayer-1.5.0-debug.apk
+adb install -r app/build/outputs/apk/debug/STArchivePlayer-1.5.1-debug.apk
 ```
 
-The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.5.0-debug.apk`). To share a build with the public, attach it to a GitHub Release using the **stable filename** `STArchivePlayer-debug.apk` — the Download link above stays correct automatically.
+The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.5.1-debug.apk`). To share a build with the public, attach it to a GitHub Release using the **stable filename** `STArchivePlayer-debug.apk` — the Download link above stays correct automatically.
 
 ---
 
