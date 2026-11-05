@@ -23,7 +23,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
@@ -45,7 +44,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,8 +63,6 @@ fun ArtistDetailScreen(
     onBack: () -> Unit,
     onTrackClick: (List<Track>, Int) -> Unit,
     onToggleFavorite: (Track) -> Unit,
-    singleArtistMode: Boolean = false,
-    onExitSingleArtist: (() -> Unit)? = null,
     downloadManager: com.starchive.player.data.DownloadManager,
     onDownloadMany: (List<Track>) -> Unit = {},
     resumeTitle: String? = null,
@@ -85,35 +81,17 @@ fun ArtistDetailScreen(
             TopAppBar(
                 title = { Text(artist.displayName) },
                 navigationIcon = {
-                    if (singleArtistMode) {
-                        // Exit Single Artist mode: back to the all-artists front page.
-                        IconButton(onClick = { onExitSingleArtist?.invoke() }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Forlad Single Artist",
-                            )
-                        }
-                    } else {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Tilbage",
-                            )
-                        }
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                        )
                     }
                 },
                 actions = {
-                    if (singleArtistMode) {
-                        Text(
-                            text = "Single Artist",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(end = 16.dp),
-                        )
-                    }
                     if (selectionMode) {
                         Text(
-                            text = "${selected.size} valgt",
+                            text = "${selected.size} selected",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(end = 8.dp),
@@ -139,7 +117,7 @@ fun ArtistDetailScreen(
                         }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Annuller valg",
+                                contentDescription = "Cancel selection",
                             )
                         }
                     }
@@ -280,14 +258,14 @@ private fun ArtistHeader(artist: Artist) {
                     text = artist.displayName.take(2).uppercase(),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
             }
             Text(
                 text = artist.displayName,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
         }
     }
@@ -353,8 +331,8 @@ private fun TrackRow(
                 if (isCurrent && isPlaying) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = "Afspiller",
-                        tint = Color.White,
+                        contentDescription = "Playing",
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -379,14 +357,14 @@ private fun TrackRow(
                 )
                 if (isCurrent) {
                     Text(
-                        text = if (isPlaying) "Afspiller nu" else "Pause",
+                        text = if (isPlaying) "Now playing" else "Paused",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
                 if (downloadProgress != null) {
                     Text(
-                        text = "Downloader ${(downloadProgress * 100).toInt()}%",
+                        text = "Downloading ${(downloadProgress * 100).toInt()}%",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -396,7 +374,7 @@ private fun TrackRow(
             if (isDownloaded) {
                 Icon(
                     imageVector = Icons.Filled.DownloadDone,
-                    contentDescription = "Downloadet",
+                    contentDescription = "Downloaded",
                     tint = MaterialTheme.colorScheme.secondary,
                 )
             } else if (downloadProgress == null) {
@@ -411,7 +389,7 @@ private fun TrackRow(
             IconButton(onClick = onToggleFavorite) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Fjern favorit" else "Tilføj favorit",
+                    contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
                     tint = if (isFavorite) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )

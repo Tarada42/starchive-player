@@ -31,12 +31,12 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ViewHeadline
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -51,19 +51,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -77,7 +75,6 @@ fun ArtistListScreen(
     favoriteArtistIds: Set<String>,
     sort: ArtistSort,
     sortAscending: Boolean,
-    singleArtistId: String?,
     isDark: Boolean,
     layoutMode: ArtistListLayout = ArtistListLayout.GRID,
     recentResumePoints: List<MainViewModel.ResumePoint> = emptyList(),
@@ -87,7 +84,7 @@ fun ArtistListScreen(
     onRemoveResumePoint: (String) -> Unit = {},
     onClearResumePoints: () -> Unit = {},
     onToggleFavorite: (Artist) -> Unit,
-    onSetSingleArtist: (Artist?) -> Unit,
+    onAboutArtist: (Artist) -> Unit,
     onToggleTheme: () -> Unit,
     onToggleLayoutMode: () -> Unit,
     modifier: Modifier = Modifier,
@@ -129,14 +126,14 @@ fun ArtistListScreen(
                     IconButton(onClick = onToggleLayoutMode) {
                         Icon(
                             imageVector = if (layoutMode == ArtistListLayout.GRID) Icons.Filled.ViewHeadline else Icons.Filled.GridView,
-                            contentDescription = if (layoutMode == ArtistListLayout.GRID) "Skift til liste" else "Skift til gitter",
+                            contentDescription = if (layoutMode == ArtistListLayout.GRID) "Switch to list" else "Switch to grid",
                             tint = MaterialTheme.colorScheme.onBackground,
                         )
                     }
                     IconButton(onClick = onToggleTheme) {
                         Icon(
                             imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
-                            contentDescription = if (isDark) "Skift til lyst tema" else "Skift til mørkt tema",
+                            contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme",
                             tint = MaterialTheme.colorScheme.onBackground,
                         )
                     }
@@ -165,7 +162,7 @@ fun ArtistListScreen(
                         {
                             Icon(
                                 imageVector = if (sortAscending) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
-                                contentDescription = if (sortAscending) "Name stigende" else "Name faldende",
+                                contentDescription = if (sortAscending) "Name ascending" else "Name descending",
                                 modifier = Modifier.size(16.dp),
                             )
                         }
@@ -179,57 +176,20 @@ fun ArtistListScreen(
                         {
                             Icon(
                                 imageVector = if (sortAscending) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
-                                contentDescription = if (sortAscending) "Date stigende" else "Date faldende (nyeste først)",
+                                contentDescription = if (sortAscending) "Date ascending" else "Date descending (newest first)",
                                 modifier = Modifier.size(16.dp),
                             )
                         }
                     } else null,
                 )
             }
-            if (recentResumePoints.isNotEmpty() && singleArtistId == null) {
+            if (recentResumePoints.isNotEmpty()) {
                 ContinueListeningSection(
                     resumePoints = recentResumePoints,
                     onResumeClick = onContinueListeningClick,
                     onRemoveResumePoint = onRemoveResumePoint,
                     onClearResumePoints = onClearResumePoints,
                 )
-            }
-            // Banner when the app is pinned to a single artist: explains the front page
-            // shows only this DJ and how to get back to all artists.
-            singleArtistId?.let { pinned ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Text(
-                        text = "Single Artist: starting on this DJ. Tap “Show all” to exit.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = "Show all",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                            .clickable { onSetSingleArtist(null) },
-                    )
-                }
             }
             // Grid mode preserves the existing card layout; list mode shows a compact
             // row with a thumbnail on the left and the full artist name.
@@ -246,15 +206,20 @@ fun ArtistListScreen(
                         ArtistCard(
                             artist = artist,
                             isFavorite = favoriteArtistIds.contains(artist.id),
-                            isPinned = artist.id == singleArtistId,
                             onClick = { onArtistClick(artist) },
                             onToggleFavorite = { onToggleFavorite(artist) },
-                            onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist) },
+                            onAboutArtist = { onAboutArtist(artist) },
                         )
                     }
                 }
             } else {
-                LazyListContent(artists, favoriteArtistIds, singleArtistId, onArtistClick, onToggleFavorite, onSetSingleArtist)
+                LazyListContent(
+                    artists = artists,
+                    favoriteArtistIds = favoriteArtistIds,
+                    onArtistClick = onArtistClick,
+                    onToggleFavorite = onToggleFavorite,
+                    onAboutArtist = onAboutArtist,
+                )
             }
         }
     }
@@ -264,10 +229,9 @@ fun ArtistListScreen(
 private fun ArtistCard(
     artist: Artist,
     isFavorite: Boolean,
-    isPinned: Boolean = false,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onSetSingle: () -> Unit = {},
+    onAboutArtist: () -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -276,7 +240,6 @@ private fun ArtistCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            // Web app's card surface: #11111c
             containerColor = MaterialTheme.colorScheme.surface,
         ),
     ) {
@@ -305,19 +268,18 @@ private fun ArtistCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                // Pin = "Start app showing only this Artist" (Single Artist mode).
-                IconButton(onClick = onSetSingle) {
+                // Info = open the DJ's About page.
+                IconButton(onClick = onAboutArtist) {
                     Icon(
-                        imageVector = Icons.Filled.PushPin,
-                        contentDescription = if (isPinned) "Forlad single-artist" else "Start app på kun denne DJ",
-                        tint = if (isPinned) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        imageVector = Icons.Filled.Info,
+                        contentDescription = "About this DJ",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 IconButton(onClick = onToggleFavorite) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Fjern favorit" else "Tilføj favorit",
+                        contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
                         tint = if (isFavorite) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -362,7 +324,7 @@ private fun ArtistThumbnail(
                 text = artist.displayName.take(2).uppercase(),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
         }
     }
@@ -497,10 +459,9 @@ private fun ContinueListeningCard(
 private fun LazyListContent(
     artists: List<Artist>,
     favoriteArtistIds: Set<String>,
-    singleArtistId: String?,
     onArtistClick: (Artist) -> Unit,
     onToggleFavorite: (Artist) -> Unit,
-    onSetSingleArtist: (Artist?) -> Unit,
+    onAboutArtist: (Artist) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -511,10 +472,9 @@ private fun LazyListContent(
             ArtistListItem(
                 artist = artist,
                 isFavorite = favoriteArtistIds.contains(artist.id),
-                isPinned = artist.id == singleArtistId,
                 onClick = { onArtistClick(artist) },
                 onToggleFavorite = { onToggleFavorite(artist) },
-                onSetSingle = { onSetSingleArtist(if (artist.id == singleArtistId) null else artist) },
+                onAboutArtist = { onAboutArtist(artist) },
             )
         }
     }
@@ -524,10 +484,9 @@ private fun LazyListContent(
 private fun ArtistListItem(
     artist: Artist,
     isFavorite: Boolean,
-    isPinned: Boolean = false,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onSetSingle: () -> Unit = {},
+    onAboutArtist: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -569,19 +528,18 @@ private fun ArtistListItem(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        IconButton(onClick = onSetSingle, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = onAboutArtist, modifier = Modifier.size(40.dp)) {
             Icon(
-                imageVector = Icons.Filled.PushPin,
-                contentDescription = if (isPinned) "Forlad single-artist" else "Start app på kun denne DJ",
-                tint = if (isPinned) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                imageVector = Icons.Filled.Info,
+                contentDescription = "About this DJ",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
         }
         IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
             Icon(
                 imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                contentDescription = if (isFavorite) "Fjern favorit" else "Tilføj favorit",
+                contentDescription = if (isFavorite) "Remove favorite" else "Add favorite",
                 tint = if (isFavorite) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
@@ -589,4 +547,3 @@ private fun ArtistListItem(
         }
     }
 }
-

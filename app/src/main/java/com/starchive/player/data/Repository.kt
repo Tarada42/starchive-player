@@ -244,11 +244,10 @@ class Repository(
     suspend fun setArtistListLayout(layout: ArtistListLayout) =
         userPreferencesDataStore.setArtistListLayout(layout)
 
-    // Playback resume state (last track/position, per-artist positions, single-artist mode, recent history)
+    // Playback resume state (last track/position, per-artist positions, recent history)
     val lastTrackId: Flow<String?> = playbackStateDataStore.lastTrackId
     val lastArtistId: Flow<String?> = playbackStateDataStore.lastArtistId
     val lastPositionMs: Flow<Long> = playbackStateDataStore.lastPositionMs
-    val singleArtistId: Flow<String?> = playbackStateDataStore.singleArtistId
     val artistPositions: Flow<Map<String, Pair<String, Long>>> = playbackStateDataStore.artistPositions
     val recentHistory: Flow<List<PlaybackStateDataStore.RecentEntry>> = playbackStateDataStore.recentHistory
 
@@ -262,8 +261,6 @@ class Repository(
         playbackStateDataStore.saveLast(track.id, track.artistId, positionMs)
 
     suspend fun clearLastPlayback() = playbackStateDataStore.clearLast()
-
-    suspend fun setSingleArtist(artistId: String?) = playbackStateDataStore.setSingleArtist(artistId)
 
     suspend fun removeRecent(trackId: String) = playbackStateDataStore.removeRecent(trackId)
 

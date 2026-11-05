@@ -97,6 +97,9 @@ data object SettingsRoute
 @Serializable
 data object AboutRoute
 
+@Serializable
+data class AboutDjRoute(val artistId: String, val artistName: String, val artistImageUrl: String?)
+
 enum class TopLevel(val route: Any, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Browse(HomeRoute, "Browse", Icons.Filled.Home),
     Live(LiveRoute, "Live now", Icons.Filled.PlayArrow),
@@ -230,7 +233,6 @@ fun AppNav(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val artistSort by viewModel.artistSort.collectAsStateWithLifecycle()
     val sortAscending by viewModel.sortAscending.collectAsStateWithLifecycle()
-    val singleArtistId by viewModel.singleArtistId.collectAsStateWithLifecycle()
     val favoriteTrackIds by viewModel.favoriteTracks.collectAsStateWithLifecycle()
     val favoriteArtistIds by viewModel.favoriteArtists.collectAsStateWithLifecycle()
     val favoriteTrackObjects by viewModel.favoriteTrackObjects.collectAsStateWithLifecycle()
@@ -324,33 +326,17 @@ fun AppNav(
         navController.navigate(PlayerRoute)
     }
 
-    // On launch: if Single Artist mode is active, the front page starts on that
-    // artist — the HomeRoute already renders only that artist's tracks. We must NOT
-    // auto-play/resume anything here (entering this mode or launching in it must only
-    // OPEN the artist, never start, pause, or replace what's playing). Resume is
-    // available through the explicit "Continue" button on the artist screen.
-    // The non-single path still resumes the last-played track on a normal cold start.
+    // On a normal cold start, resume the last-played track once artists are loaded.
     val resumeStarted = rememberSaveable { mutableStateOf(false) }
     val launchArtists = artistsState
-    LaunchedEffect(launchArtists, singleArtistId) {
+    LaunchedEffect(launchArtists) {
         if (resumeStarted.value) return@LaunchedEffect
         val success = launchArtists as? UiState.Success ?: return@LaunchedEffect
         resumeStarted.value = true
-        val activeSingle = singleArtistId
-        if (activeSingle != null) {
-            val artist = success.data.find { it.id == activeSingle }
-            if (artist != null) {
-                selectedArtist = artist
-                viewModel.loadTracks(artist)
-                // No auto-play: the artist's tracks are shown by HomeRoute; resume is
-                // only triggered by the explicit "Continue" button.
-            }
-        } else {
-            val pt = viewModel.lastResumePoint()
-            if (pt != null) {
-                manager.play(pt.tracks, pt.index, pt.positionMs)
-                navController.navigate(PlayerRoute)
-            }
+        val pt = viewModel.lastResumePoint()
+        if (pt != null) {
+            manager.play(pt.tracks, pt.index, pt.positionMs)
+            navController.navigate(PlayerRoute)
         }
     }
 
@@ -439,54 +425,11 @@ fun AppNav(
                             is UiState.Loading -> Loading(Modifier.fillMaxSize())
                             is UiState.Error -> Error(s.message, Modifier.fillMaxSize())
                             is UiState.Success -> {
-                                // Single Artist mode: the front page IS the pinned artist's full
-                                // track list — no artist grid, no picker. Exit via the top-bar back.
-                                val pinned = singleArtistId?.let { id -> s.data.find { it.id == id } }
-                                if (pinned != null) {
-                                    LaunchedEffect(pinned.id) { viewModel.loadTracks(pinned) }
-                                    when (val t = tracksState) {
-                                        is UiState.Loading -> Loading(Modifier.fillMaxSize())
-                                        is UiState.Error -> Error(t.message, Modifier.fillMaxSize())
-                                        is UiState.Success -> {
-                                            // Offer explicit resume (option B) but never auto-play.
-                                            var singleRpState by remember(pinned.id) { mutableStateOf<MainViewModel.ResumePoint?>(null) }
-                                            LaunchedEffect(pinned.id) {
-                                                singleRpState = viewModel.resumePointForArtist(pinned)
-                                            }
-                                            val singleRp = singleRpState
-                                            ArtistDetailScreen(
-                                                artist = pinned,
-                                                tracks = t.data,
-                                                favorites = favoriteTrackIds,
-                                                currentTrackId = current?.id,
-                                                isPlaying = isPlaying,
-                                                onBack = { viewModel.setSingleArtist(null) },
-                                                onTrackClick = { tracks, index ->
-                                                    manager.play(tracks, index)
-                                                    navController.navigate(PlayerRoute)
-                                                },
-                                                onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
-                                                singleArtistMode = true,
-                                                onExitSingleArtist = { viewModel.setSingleArtist(null) },
-                                                downloadManager = downloadManager,
-                                                onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
-                                                resumeTitle = singleRp?.tracks?.getOrNull(singleRp.index)?.title,
-                                                onResume = {
-                                                    if (singleRp != null) {
-                                                        manager.play(singleRp.tracks, singleRp.index, singleRp.positionMs)
-                                                        navController.navigate(PlayerRoute)
-                                                    }
-                                                },
-                                                modifier = Modifier.fillMaxSize(),
-                                            )
-                                        }
-                                    }
-                                } else ArtistListScreen(
+                                ArtistListScreen(
                                     artists = s.data,
                                     favoriteArtistIds = favoriteArtistIds,
                                     sort = artistSort,
                                     sortAscending = sortAscending,
-                                    singleArtistId = singleArtistId,
                                     isDark = isDark,
                                     layoutMode = artistListLayout.value,
                                     recentResumePoints = recentResumePoints,
@@ -505,8 +448,14 @@ fun AppNav(
                                     onToggleFavorite = { artist ->
                                         viewModel.toggleFavoriteArtist(artist)
                                     },
-                                    onSetSingleArtist = { artist ->
-                                        viewModel.setSingleArtist(artist?.id)
+                                    onAboutArtist = { artist ->
+                                        navController.navigate(
+                                            AboutDjRoute(
+                                                artist.id,
+                                                artist.displayName,
+                                                artist.bestImageUrl,
+                                            )
+                                        )
                                     },
                                     onToggleTheme = onToggleTheme,
                                     onToggleLayoutMode = viewModel::toggleArtistListLayout,
@@ -677,6 +626,18 @@ fun AppNav(
 
                     composable<AboutRoute> {
                         AboutScreen(
+                            onBack = { navController.popBackStack() },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+
+                    composable<AboutDjRoute> { backStackEntry ->
+                        val route = backStackEntry.toRoute<AboutDjRoute>()
+                        val artist = remember(route.artistId) {
+                            Artist(route.artistId, route.artistName, route.artistImageUrl, null)
+                        }
+                        AboutDjScreen(
+                            artist = artist,
                             onBack = { navController.popBackStack() },
                             modifier = Modifier.fillMaxSize(),
                         )

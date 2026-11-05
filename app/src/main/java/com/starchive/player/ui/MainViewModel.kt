@@ -100,13 +100,11 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     @Deprecated("Use liveStreamUrlHigh or liveStreamUrlLow")
     fun liveStreamUrl(username: String): String = liveStreamUrlHigh(username)
 
-    /** Last-played track/position + per-artist resume points + single-artist mode. */
+    /** Last-played track/position + per-artist resume points. */
     val lastTrackId: StateFlow<String?> = repo.lastTrackId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val lastPositionMs: StateFlow<Long> = repo.lastPositionMs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
-    val singleArtistId: StateFlow<String?> = repo.singleArtistId
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val artistPositions: StateFlow<Map<String, Pair<String, Long>>> = repo.artistPositions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -135,10 +133,6 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     /** Remove all resume entries from the continue-listening list. */
     fun clearResumePoints() {
         viewModelScope.launch { repo.clearRecentHistory() }
-    }
-
-    fun setSingleArtist(artistId: String?) {
-        viewModelScope.launch { repo.setSingleArtist(artistId) }
     }
 
     /** A playable resume point. */

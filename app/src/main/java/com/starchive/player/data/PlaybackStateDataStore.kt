@@ -16,8 +16,7 @@ private val Context.playbackStore: DataStore<Preferences> by preferencesDataStor
  * Persists playback resume state so the app can start where the user left off:
  *  - the last track + its position (global resume),
  *  - the last position *per artist* (so opening a favourite DJ resumes that DJ's
- *    last track/position),
- *  - Single Artist mode (the app's first page shows only one artist until exited).
+ *    last track/position).
  *
  * Per-artist positions are stored as a JSON object: {"<artistId>": "trackId|positionMs"}.
  */
@@ -26,7 +25,6 @@ class PlaybackStateDataStore(private val context: Context) {
     private val lastTrackKey = stringPreferencesKey("last_track_id")
     private val lastArtistKey = stringPreferencesKey("last_artist_id")
     private val lastPositionKey = longPreferencesKey("last_position_ms")
-    private val singleArtistKey = stringPreferencesKey("single_artist_id")
     private val artistPositionsKey = stringPreferencesKey("artist_positions")
     private val recentHistoryKey = stringPreferencesKey("recent_history")
 
@@ -45,7 +43,6 @@ class PlaybackStateDataStore(private val context: Context) {
     val lastTrackId: Flow<String?> = context.playbackStore.data.map { it[lastTrackKey] }
     val lastArtistId: Flow<String?> = context.playbackStore.data.map { it[lastArtistKey] }
     val lastPositionMs: Flow<Long> = context.playbackStore.data.map { it[lastPositionKey] ?: 0L }
-    val singleArtistId: Flow<String?> = context.playbackStore.data.map { it[singleArtistKey] }
     val artistPositions: Flow<Map<String, Pair<String, Long>>> =
         context.playbackStore.data.map { decodePositions(it[artistPositionsKey]) }
     val recentHistory: Flow<List<RecentEntry>> =
@@ -72,12 +69,6 @@ class PlaybackStateDataStore(private val context: Context) {
             prefs.remove(lastTrackKey)
             prefs.remove(lastArtistKey)
             prefs.remove(lastPositionKey)
-        }
-    }
-
-    suspend fun setSingleArtist(artistId: String?) {
-        context.playbackStore.edit { prefs ->
-            if (artistId == null) prefs.remove(singleArtistKey) else prefs[singleArtistKey] = artistId
         }
     }
 
