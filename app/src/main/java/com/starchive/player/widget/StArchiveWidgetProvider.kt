@@ -34,12 +34,16 @@ import kotlinx.coroutines.runBlocking
  * It keeps ONE persistent [MediaController] connected to [PlaybackService] (the same
  * MediaSession the in-app player uses), registers a [Player.Listener] that re-renders
  * the widget whenever the track or play state changes, and drives Play/Pause + Next
- * through that controller. Reading state from the live controller (instead of a
- * laggy persisted snapshot) is what keeps the play/pause icon correct and the
- * controls reliable. When the controller has not connected yet it falls back to the
- * persisted "now playing" record so the first render still shows something.
+ * through that controller.
  *
- * Artwork is loaded with a tiny cached HttpURLConnection download (widgets cannot use
+ * THREADING RULE (this caused a crash): `MediaController` getters (isPlaying,
+ * currentMediaItem, mediaMetadata) may ONLY be called on the application (main) thread
+ * — calling them on a background thread throws `IllegalStateException`. So the play
+ * state is read synchronously on the caller's thread (onUpdate/onReceive/listeners all
+ * run on main), and only artwork download + the final RemoteViews post run off the
+ * main thread, wrapped so a widget error never crashes the app process.
+ *
+ * Artwork is loaded with a tiny cached HttpURLConnection download (widgets can't use
  * Coil); tapping the widget body opens the app. Remote view clicks go via PendingIntents.
  */
 class StArchiveWidgetProvider : AppWidgetProvider() {
@@ -77,6 +81,8 @@ private data class NowState(
     val artworkUrl: String?,
     val playing: Boolean,
 )
+
+private val EMPTY_STATE = NowState(null, null, null, false)
 
 @Volatile private var appContextRef: Context? = null
 private val controllerLock = Any()
@@ -124,26 +130,35 @@ private fun runOnController(action: (Player) -> Unit) {
     Handler(Looper.getMainLooper()).post { runCatching { action(c) } }
 }
 
-/** Source of truth for the widget: live controller state, then persisted fallback. */
+/**
+ * Read the play state for the widget. MUST run on the application (main) thread —
+ * MediaController getters throw if called from another thread. Falls back to the
+ * persisted "now playing" record only while the controller is still connecting.
+ */
 private fun currentState(): NowState {
     val cont = synchronized(controllerLock) { controllerRef }
     if (cont != null) {
-        val meta = cont.currentMediaItem?.mediaMetadata
-        return NowState(
-            title = meta?.title?.toString()?.takeIf { it.isNotBlank() },
-            artist = meta?.artist?.toString()?.takeIf { it.isNotBlank() },
-            artworkUrl = meta?.artworkUri?.toString()?.takeIf { it.isNotBlank() },
-            playing = cont.isPlaying,
-        )
+        return runCatching {
+            val meta = cont.currentMediaItem?.mediaMetadata
+            NowState(
+                title = meta?.title?.toString()?.takeIf { it.isNotBlank() },
+                artist = meta?.artist?.toString()?.takeIf { it.isNotBlank() },
+                artworkUrl = meta?.artworkUri?.toString()?.takeIf { it.isNotBlank() },
+                playing = cont.isPlaying,
+            )
+        }.getOrNull() ?: EMPTY_STATE
     }
+    // Controller not connected yet — brief, minimal persisted fallback.
     val ctx = appContextRef
-    if (ctx == null) return NowState(null, null, null, false)
+    if (ctx == null) return EMPTY_STATE
     val store = PlaybackStateDataStore(ctx)
-    return runBlocking {
-        combine(store.nowTitle, store.nowArtist, store.nowArtworkUrl, store.nowPlaying) { t, a, u, p ->
-            NowState(t, a, u, p)
-        }.first()
-    }
+    return runCatching {
+        runBlocking {
+            combine(store.nowTitle, store.nowArtist, store.nowArtworkUrl, store.nowPlaying) { t, a, u, p ->
+                NowState(t, a, u, p)
+            }.first()
+        }
+    }.getOrNull() ?: EMPTY_STATE
 }
 
 private fun reRenderAll(context: Context) {
@@ -152,57 +167,65 @@ private fun reRenderAll(context: Context) {
     if (ids.isNotEmpty()) ids.forEach { id -> render(context, id) }
 }
 
-/** Build + post a [RemoteViews] for one widget instance (artwork load off the main thread). */
+/**
+ * Build + post a [RemoteViews] for one widget instance.
+ *
+ * The play state is read HERE on the caller's (main) thread — required for
+ * MediaController. Only artwork download and the final `updateAppWidget` post happen on
+ * a background thread, and that whole block is guarded so a widget error never crashes
+ * the app process.
+ */
 private fun render(context: Context, appWidgetId: Int) {
+    val state = currentState()
+    val views = RemoteViews(context.packageName, R.layout.widget_mini_player)
+    views.setTextViewText(R.id.widget_title, state.title ?: "STArchive")
+    views.setTextViewText(R.id.widget_artist, state.artist ?: "Tap to open")
+    views.setImageViewResource(
+        R.id.btn_play,
+        if (state.playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play,
+    )
+    views.setContentDescription(R.id.btn_play, if (state.playing) "Pause" else "Play")
+
+    val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    // Tap the widget body -> open the app.
+    val openApp = Intent(context, MainActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    views.setOnClickPendingIntent(
+        R.id.widget_root,
+        PendingIntent.getActivity(context, appWidgetId * 3 + 1, openApp, flags),
+    )
+    views.setOnClickPendingIntent(
+        R.id.btn_play,
+        PendingIntent.getBroadcast(
+            context, appWidgetId * 3 + 2,
+            Intent(context, StArchiveWidgetProvider::class.java)
+                .setAction(StArchiveWidgetProvider.ACTION_TOGGLE),
+            flags,
+        ),
+    )
+    views.setOnClickPendingIntent(
+        R.id.btn_next,
+        PendingIntent.getBroadcast(
+            context, appWidgetId * 3 + 3,
+            Intent(context, StArchiveWidgetProvider::class.java)
+                .setAction(StArchiveWidgetProvider.ACTION_NEXT),
+            flags,
+        ),
+    )
+
+    // Artwork download + post run off the main thread; guard everything so a failure
+    // cannot crash the app.
     CoroutineScope(Dispatchers.IO).launch {
-        val state = currentState()
-        val views = RemoteViews(context.packageName, R.layout.widget_mini_player)
-        views.setTextViewText(R.id.widget_title, state.title ?: "STArchive")
-        views.setTextViewText(R.id.widget_artist, state.artist ?: "Tap to open")
-        views.setImageViewResource(
-            R.id.btn_play,
-            if (state.playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play,
-        )
-        views.setContentDescription(R.id.btn_play, if (state.playing) "Pause" else "Play")
-
-        val bitmap = loadArtwork(state.artworkUrl)
-        if (bitmap != null) {
-            views.setImageViewBitmap(R.id.widget_artwork, bitmap)
-        } else {
-            views.setImageViewResource(R.id.widget_artwork, R.mipmap.ic_launcher)
-        }
-
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        // Tap the widget body -> open the app.
-        val openApp = Intent(context, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        views.setOnClickPendingIntent(
-            R.id.widget_root,
-            PendingIntent.getActivity(context, appWidgetId * 3 + 1, openApp, flags),
-        )
-        views.setOnClickPendingIntent(
-            R.id.btn_play,
-            PendingIntent.getBroadcast(
-                context, appWidgetId * 3 + 2,
-                Intent(context, StArchiveWidgetProvider::class.java)
-                    .setAction(StArchiveWidgetProvider.ACTION_TOGGLE),
-                flags,
-            ),
-        )
-        views.setOnClickPendingIntent(
-            R.id.btn_next,
-            PendingIntent.getBroadcast(
-                context, appWidgetId * 3 + 3,
-                Intent(context, StArchiveWidgetProvider::class.java)
-                    .setAction(StArchiveWidgetProvider.ACTION_NEXT),
-                flags,
-            ),
-        )
-
         try {
+            val bitmap = loadArtwork(state.artworkUrl)
+            if (bitmap != null) {
+                views.setImageViewBitmap(R.id.widget_artwork, bitmap)
+            } else {
+                views.setImageViewResource(R.id.widget_artwork, R.mipmap.ic_launcher)
+            }
             AppWidgetManager.getInstance(context).updateAppWidget(appWidgetId, views)
         } catch (_: Exception) {
-            // Widget was removed in the meantime — ignore.
+            // Widget render failed — never propagate.
         }
     }
 }
