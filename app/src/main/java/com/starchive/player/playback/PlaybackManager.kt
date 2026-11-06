@@ -49,6 +49,9 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs
 
+    private val _shuffleEnabled = MutableStateFlow(false)
+    val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled
+
     private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
     val sleepTimerMinutes: StateFlow<Int?> = _sleepTimerMinutes
 
@@ -136,6 +139,14 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     fun togglePlayPause() {
         val c = controller ?: return
         if (c.isPlaying) c.pause() else c.play()
+    }
+
+    /** Toggles shuffle mode on the current queue (Media3 handles the order). */
+    fun toggleShuffle() {
+        val c = controller ?: return
+        val target = !c.isShuffleModeEnabled
+        c.setShuffleModeEnabled(target)
+        _shuffleEnabled.value = target
     }
 
     fun next() = controller?.seekToNextMediaItem()
@@ -233,6 +244,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
                     _isPlaying.value = c.isPlaying
                     _positionMs.value = c.currentPosition.coerceAtLeast(0L)
                     _durationMs.value = c.duration.coerceAtLeast(0L)
+                    _shuffleEnabled.value = c.isShuffleModeEnabled
                     // Which queue item is active?
                     val idx = c.currentMediaItemIndex
                     if (idx in queue.indices) _current.value = queue[idx]

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay30
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -76,6 +77,7 @@ fun PlayerScreen(
     durationMs: Long,
     sleepTimerMinutes: Int?,
     sleepTimerRemainingMs: Long?,
+    shuffleEnabled: Boolean,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -87,6 +89,7 @@ fun PlayerScreen(
     onShare: () -> Unit,
     onStop: () -> Unit,
     onSetSleepTimer: (Int?) -> Unit,
+    onToggleShuffle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -255,13 +258,22 @@ fun PlayerScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Favorite + cast + share (cast button is PHONE-ONLY; Android Auto
+                // Favorite + shuffle + cast + share (cast button is PHONE-ONLY; Android Auto
                 // never renders PlayerScreen, so no cast functionality reaches AA).
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    IconButton(onClick = onToggleShuffle, modifier = Modifier.size(56.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.Shuffle,
+                            contentDescription = if (shuffleEnabled) "Shuffle off" else "Shuffle on",
+                            tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
                     IconButton(onClick = onToggleFavorite, modifier = Modifier.size(56.dp)) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,

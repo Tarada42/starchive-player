@@ -226,6 +226,7 @@ fun AppNav(
     val duration by manager.durationMs.collectAsStateWithLifecycle()
     val sleepTimerMinutes by manager.sleepTimerMinutes.collectAsStateWithLifecycle()
     val sleepTimerRemainingMs by manager.sleepTimerRemainingMs.collectAsStateWithLifecycle()
+    val shuffleEnabled by manager.shuffleEnabled.collectAsStateWithLifecycle()
 
     val artistsState by viewModel.artists.collectAsStateWithLifecycle()
     val tracksState by viewModel.tracks.collectAsStateWithLifecycle()
@@ -600,6 +601,7 @@ fun AppNav(
                             durationMs = duration,
                             sleepTimerMinutes = sleepTimerMinutes,
                             sleepTimerRemainingMs = sleepTimerRemainingMs,
+                            shuffleEnabled = shuffleEnabled,
                             onBack = { navController.popBackStack() },
                             onTogglePlay = { manager.togglePlayPause() },
                             onSeek = { ms -> manager.seekTo(ms) },
@@ -613,6 +615,7 @@ fun AppNav(
                             onSetSleepTimer = { minutes ->
                                 if (minutes != null) manager.setSleepTimer(minutes) else manager.cancelSleepTimer()
                             },
+                            onToggleShuffle = { manager.toggleShuffle() },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
