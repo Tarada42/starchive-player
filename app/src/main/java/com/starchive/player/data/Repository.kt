@@ -262,6 +262,12 @@ class Repository(
 
     suspend fun clearLastPlayback() = playbackStateDataStore.clearLast()
 
+    /** Persist the track + play state the home-screen widget renders. */
+    suspend fun saveNowPlayingTrack(track: Track?, isPlaying: Boolean) =
+        playbackStateDataStore.saveNowPlaying(track?.title, track?.artistName, track?.thumbnailUrl, isPlaying)
+
+    suspend fun clearNowPlaying() = playbackStateDataStore.clearNowPlaying()
+
     suspend fun removeRecent(trackId: String) = playbackStateDataStore.removeRecent(trackId)
 
     suspend fun clearRecentHistory() = playbackStateDataStore.clearRecentHistory()

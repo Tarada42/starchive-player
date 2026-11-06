@@ -2,6 +2,7 @@ package com.starchive.player.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
@@ -64,6 +65,9 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     private var pendingPlay: Pair<List<Track>, Int>? = null
     private var lastPersistedTrackId: String? = null
     private var wasRemotePlayback = false
+    // Last values we told the home-screen widget about, so we only re-render on change.
+    private var lastWidgetTrackId: String? = null
+    private var lastWidgetPlaying = false
 
     /**
      * Reacts to the MediaSession swapping the underlying player. When the service moves
@@ -223,12 +227,22 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     fun seekTo(ms: Long) = controller?.seekTo(ms)
 
     fun stop() {
-        val c = controller ?: return
-        c.pause()
-        c.seekTo(0L)
+        val c = controller
+        if (c != null) {
+            c.pause()
+            c.seekTo(0L)
+            // Drop the timeline so the ticker can't re-persist a stale 'current' after stop.
+            runCatching { c.clearMediaItems() }
+        }
         _isPlaying.value = false
         _positionMs.value = 0L
+        _current.value = null
+        _queue.value = emptyList()
+        lastWidgetTrackId = null
+        lastWidgetPlaying = false
         scope.launch { repository.clearLastPlayback() }
+        scope.launch { repository.clearNowPlaying() }
+        context.sendBroadcast(Intent(ACTION_WIDGET_UPDATE).setPackage(context.packageName))
     }
 
     /** Arms the sleep timer for [minutes] (15/30/45/60). 0 or negative cancels. */
@@ -314,6 +328,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
                     val idx = c.currentMediaItemIndex
                     if (idx in _queue.value.indices) _current.value = _queue.value[idx]
                     persistIfChanged()
+                    notifyWidgetIfChanged()
                 }
                 delay(500)
             }
@@ -330,6 +345,25 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
         if (track.id == lastPersistedTrackId && _positionMs.value % 2000L > 500L) return
         lastPersistedTrackId = track.id
         scope.launch { repository.saveLastPlayback(track, _positionMs.value) }
+    }
+
+    /** Re-render the home-screen widget only when the current track or play state
+     *  actually changed (throttles the frequent ticker updates). Live streams are
+     *  included — the widget shows the live DJ's title/artist. */
+    private fun notifyWidgetIfChanged() {
+        val track = _current.value
+        val trackId = track?.id
+        val playing = _isPlaying.value
+        if (trackId == lastWidgetTrackId && playing == lastWidgetPlaying) return
+        lastWidgetTrackId = trackId
+        lastWidgetPlaying = playing
+        scope.launch { repository.saveNowPlayingTrack(track, playing) }
+        context.sendBroadcast(Intent(ACTION_WIDGET_UPDATE).setPackage(context.packageName))
+    }
+
+    companion object {
+        /** Broadcast action the home-screen widget listens to for "re-render now". */
+        const val ACTION_WIDGET_UPDATE = "com.starchive.player.widget.UPDATE"
     }
 }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -28,6 +29,11 @@ class PlaybackStateDataStore(private val context: Context) {
     private val artistPositionsKey = stringPreferencesKey("artist_positions")
     private val recentHistoryKey = stringPreferencesKey("recent_history")
 
+    private val nowTitleKey = stringPreferencesKey("now_title")
+    private val nowArtistKey = stringPreferencesKey("now_artist")
+    private val nowArtworkUrlKey = stringPreferencesKey("now_artwork_url")
+    private val nowPlayingKey = booleanPreferencesKey("now_playing")
+
     private companion object {
         const val MAX_RECENT_HISTORY = 20
     }
@@ -47,6 +53,11 @@ class PlaybackStateDataStore(private val context: Context) {
         context.playbackStore.data.map { decodePositions(it[artistPositionsKey]) }
     val recentHistory: Flow<List<RecentEntry>> =
         context.playbackStore.data.map { decodeRecentHistory(it[recentHistoryKey]) }
+
+    val nowTitle: Flow<String?> = context.playbackStore.data.map { it[nowTitleKey] }
+    val nowArtist: Flow<String?> = context.playbackStore.data.map { it[nowArtistKey] }
+    val nowArtworkUrl: Flow<String?> = context.playbackStore.data.map { it[nowArtworkUrlKey] }
+    val nowPlaying: Flow<Boolean> = context.playbackStore.data.map { it[nowPlayingKey] ?: false }
 
     /** Save the currently-playing track + position, and remember it for that artist too.
      *  Also records the play in the ordered recent-history list so Browse can show
@@ -69,6 +80,34 @@ class PlaybackStateDataStore(private val context: Context) {
             prefs.remove(lastTrackKey)
             prefs.remove(lastArtistKey)
             prefs.remove(lastPositionKey)
+        }
+    }
+
+    /** Persist the display info the home-screen widget needs (title, artist, artwork
+     *  URL and play state). PlaybackManager keeps this fresh as playback changes. */
+    suspend fun saveNowPlaying(trackTitle: String?, artist: String?, artworkUrl: String?, isPlaying: Boolean) {
+        context.playbackStore.edit { prefs ->
+            if (trackTitle == null && artist == null && artworkUrl == null) {
+                prefs.remove(nowTitleKey)
+                prefs.remove(nowArtistKey)
+                prefs.remove(nowArtworkUrlKey)
+                prefs.remove(nowPlayingKey)
+                return@edit
+            }
+            prefs[nowTitleKey] = trackTitle ?: ""
+            prefs[nowArtistKey] = artist ?: ""
+            if (artworkUrl != null) prefs[nowArtworkUrlKey] = artworkUrl
+            prefs[nowPlayingKey] = isPlaying
+        }
+    }
+
+    /** Clear the widget's now-playing record (e.g. when playback is stopped). */
+    suspend fun clearNowPlaying() {
+        context.playbackStore.edit { prefs ->
+            prefs.remove(nowTitleKey)
+            prefs.remove(nowArtistKey)
+            prefs.remove(nowArtworkUrlKey)
+            prefs.remove(nowPlayingKey)
         }
     }
 

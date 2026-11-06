@@ -90,5 +90,17 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/aa_file_paths" />
         </provider>
+
+        <!-- Home-screen mini-player widget (drives the same PlaybackService MediaSession). -->
+        <receiver
+            android:name=".widget.StArchiveWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mini_player_widget_info" />
+        </receiver>
     </application>
 </manifest>
