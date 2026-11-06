@@ -60,7 +60,11 @@ class StArchiveWidgetProvider : AppWidgetProvider() {
         ensureController(context)
         when (intent?.action) {
             ACTION_TOGGLE -> runOnController { c -> if (c.isPlaying) c.pause() else c.play() }
-            ACTION_NEXT -> runOnController { c -> c.seekToNextMediaItem() }
+            // Skip from the widget must auto-play the next track.
+            ACTION_NEXT -> runOnController { c ->
+                c.seekToNextMediaItem()
+                c.play()
+            }
             ACTION_UPDATE -> reRenderAll(context)
         }
     }
