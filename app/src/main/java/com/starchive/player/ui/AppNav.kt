@@ -538,6 +538,7 @@ fun AppNav(
                         LiveNowScreen(
                             liveArtists = liveArtists,
                             isRefreshing = false,
+                            favoriteArtistIds = favoriteArtistIds,
                             onPlay = { artist ->
                                 liveQualityArtist = artist
                             },

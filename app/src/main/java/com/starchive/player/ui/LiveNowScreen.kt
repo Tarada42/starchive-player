@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ViewHeadline
@@ -78,6 +80,7 @@ private enum class LiveLayout {
 fun LiveNowScreen(
     liveArtists: List<Artist>,
     isRefreshing: Boolean,
+    favoriteArtistIds: Set<String> = emptySet(),
     onPlay: (Artist) -> Unit,
     onOpenTwitch: (Artist) -> Unit,
     onRefresh: () -> Unit,
@@ -138,6 +141,9 @@ fun LiveNowScreen(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+                // Pin followed DJs to the top under a group header; everyone else below.
+                val favoriteLive = liveArtists.filter { it.id in favoriteArtistIds }
+                val otherLive = liveArtists.filterNot { it.id in favoriteArtistIds }
                 if (layout == LiveLayout.GRID) {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
@@ -146,12 +152,40 @@ fun LiveNowScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        items(liveArtists, key = { it.id }) { artist ->
-                            LiveDjCard(
-                                artist = artist,
-                                onPlay = { onPlay(artist) },
-                                onOpenTwitch = { onOpenTwitch(artist) },
-                            )
+                        if (favoriteLive.isNotEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                SectionHeader("Your favorites")
+                            }
+                            items(favoriteLive, key = { it.id }) { artist ->
+                                LiveDjCard(
+                                    artist = artist,
+                                    isFavorite = true,
+                                    onPlay = { onPlay(artist) },
+                                    onOpenTwitch = { onOpenTwitch(artist) },
+                                )
+                            }
+                            if (otherLive.isNotEmpty()) {
+                                item(span = { GridItemSpan(maxLineSpan) }) {
+                                    SectionHeader("Other live")
+                                }
+                                items(otherLive, key = { it.id }) { artist ->
+                                    LiveDjCard(
+                                        artist = artist,
+                                        isFavorite = false,
+                                        onPlay = { onPlay(artist) },
+                                        onOpenTwitch = { onOpenTwitch(artist) },
+                                    )
+                                }
+                            }
+                        } else {
+                            items(liveArtists, key = { it.id }) { artist ->
+                                LiveDjCard(
+                                    artist = artist,
+                                    isFavorite = false,
+                                    onPlay = { onPlay(artist) },
+                                    onOpenTwitch = { onOpenTwitch(artist) },
+                                )
+                            }
                         }
                     }
                 } else {
@@ -160,12 +194,36 @@ fun LiveNowScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(liveArtists, key = { it.id }) { artist ->
-                            LiveDjListItem(
-                                artist = artist,
-                                onPlay = { onPlay(artist) },
-                                onOpenTwitch = { onOpenTwitch(artist) },
-                            )
+                        if (favoriteLive.isNotEmpty()) {
+                            item { SectionHeader("Your favorites") }
+                            items(favoriteLive, key = { it.id }) { artist ->
+                                LiveDjListItem(
+                                    artist = artist,
+                                    isFavorite = true,
+                                    onPlay = { onPlay(artist) },
+                                    onOpenTwitch = { onOpenTwitch(artist) },
+                                )
+                            }
+                            if (otherLive.isNotEmpty()) {
+                                item { SectionHeader("Other live") }
+                                items(otherLive, key = { it.id }) { artist ->
+                                    LiveDjListItem(
+                                        artist = artist,
+                                        isFavorite = false,
+                                        onPlay = { onPlay(artist) },
+                                        onOpenTwitch = { onOpenTwitch(artist) },
+                                    )
+                                }
+                            }
+                        } else {
+                            items(liveArtists, key = { it.id }) { artist ->
+                                LiveDjListItem(
+                                    artist = artist,
+                                    isFavorite = false,
+                                    onPlay = { onPlay(artist) },
+                                    onOpenTwitch = { onOpenTwitch(artist) },
+                                )
+                            }
                         }
                     }
                 }
@@ -175,8 +233,20 @@ fun LiveNowScreen(
 }
 
 @Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(vertical = 4.dp),
+    )
+}
+
+@Composable
 private fun LiveDjCard(
     artist: Artist,
+    isFavorite: Boolean = false,
     onPlay: () -> Unit,
     onOpenTwitch: () -> Unit,
 ) {
@@ -232,6 +302,20 @@ private fun LiveDjCard(
                         color = MaterialTheme.colorScheme.onError,
                     )
                 }
+                if (isFavorite) {
+                    Icon(
+                        imageVector = Icons.Filled.Favorite,
+                        contentDescription = "Favorite",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.85f))
+                            .padding(4.dp),
+                    )
+                }
             }
             Row(
                 modifier = Modifier
@@ -265,6 +349,7 @@ private fun LiveDjCard(
 @Composable
 private fun LiveDjListItem(
     artist: Artist,
+    isFavorite: Boolean = false,
     onPlay: () -> Unit,
     onOpenTwitch: () -> Unit,
 ) {
@@ -311,6 +396,14 @@ private fun LiveDjListItem(
                 "on Twitch",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (isFavorite) {
+            Icon(
+                imageVector = Icons.Filled.Favorite,
+                contentDescription = "Favorite",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(18.dp),
             )
         }
         IconButton(onClick = onPlay, modifier = Modifier.size(40.dp)) {
