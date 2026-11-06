@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -14,12 +15,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.PlayArrow
@@ -35,6 +41,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -78,6 +85,7 @@ fun PlayerScreen(
     sleepTimerMinutes: Int?,
     sleepTimerRemainingMs: Long?,
     shuffleEnabled: Boolean,
+    queue: List<Track>,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -90,9 +98,16 @@ fun PlayerScreen(
     onStop: () -> Unit,
     onSetSleepTimer: (Int?) -> Unit,
     onToggleShuffle: () -> Unit,
+    onJumpTo: (Int) -> Unit,
+    onRemoveAt: (Int) -> Unit,
+    onMoveItem: (Int, Int) -> Unit,
+    onClearQueue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var showUpNext by remember { mutableStateOf(false) }
+    val currentIndex = queue.indexOfFirst { it.id == track?.id }.takeIf { it >= 0 }
+    val nextUpCount = if (currentIndex != null) (queue.size - 1 - currentIndex).coerceAtLeast(0) else 0
     Scaffold(
         topBar = {
             TopAppBar(
@@ -317,9 +332,199 @@ fun PlayerScreen(
                     }
                 }
 
+                // "Up next" — opens the queue sheet. Only shown when there's a real queue
+                // to manage (more than just the currently playing track).
+                if (nextUpCount > 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showUpNext = true }
+                            .padding(vertical = 6.dp, horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Up next ($nextUpCount)",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowUp,
+                            contentDescription = "Show queue",
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+
+    if (showUpNext) {
+        ModalBottomSheet(
+            onDismissRequest = { showUpNext = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            UpNextSheet(
+                queue = queue,
+                currentIndex = currentIndex ?: -1,
+                onJumpTo = { index ->
+                    onJumpTo(index)
+                    showUpNext = false
+                },
+                onRemoveAt = onRemoveAt,
+                onMove = onMoveItem,
+                onClear = onClearQueue,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UpNextSheet(
+    queue: List<Track>,
+    currentIndex: Int,
+    onJumpTo: (Int) -> Unit,
+    onRemoveAt: (Int) -> Unit,
+    onMove: (Int, Int) -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Header: title + Clear all.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Up next",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            if (queue.size > 1) {
+                TextButton(onClick = onClear) { Text("Clear all") }
+            }
+        }
+        if (queue.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(48.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Queue is empty",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
+                itemsIndexed(queue, key = { _, t -> t.id }) { index, t ->
+                    UpNextRow(
+                        track = t,
+                        position = index + 1,
+                        isCurrent = index == currentIndex,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < queue.lastIndex,
+                        onJump = { onJumpTo(index) },
+                        onRemove = { onRemoveAt(index) },
+                        onMoveUp = { onMove(index, index - 1) },
+                        onMoveDown = { onMove(index, index + 1) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpNextRow(
+    track: Track,
+    position: Int,
+    isCurrent: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onJump: () -> Unit,
+    onRemove: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .clickable(onClick = onJump)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Position number (or a play marker on the current item).
+        Text(
+            text = if (isCurrent) "▶" else position.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (isCurrent) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(28.dp),
+        )
+        Spacer(Modifier.size(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Text(
+                text = track.artistName,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onMoveUp, enabled = canMoveUp, modifier = Modifier.size(32.dp)) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowUp,
+                contentDescription = "Move up",
+                tint = if (canMoveUp) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(32.dp)) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowDown,
+                contentDescription = "Move down",
+                tint = if (canMoveDown) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Remove from queue",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

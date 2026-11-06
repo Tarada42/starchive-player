@@ -52,13 +52,15 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled
 
+    private val _queue = MutableStateFlow<List<Track>>(emptyList())
+    val queue: StateFlow<List<Track>> = _queue
+
     private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
     val sleepTimerMinutes: StateFlow<Int?> = _sleepTimerMinutes
 
     private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
     val sleepTimerRemainingMs: StateFlow<Long?> = _sleepTimerRemainingMs
 
-    private var queue: List<Track> = emptyList()
     private var pendingPlay: Pair<List<Track>, Int>? = null
     private var lastPersistedTrackId: String? = null
     private var wasRemotePlayback = false
@@ -81,7 +83,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     }
 
     private fun restoreLocalPlayback() {
-        val tracks = queue
+        val tracks = _queue.value
         val currentTrack = _current.value ?: return
         val index = tracks.indexOfFirst { it.id == currentTrack.id }.coerceAtLeast(0)
         val positionMs = if (currentTrack.id.startsWith("live-")) {
@@ -125,7 +127,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
             return
         }
         if (cancelSleepTimer) cancelSleepTimer()
-        queue = tracks
+        _queue.value = tracks
         val items = tracks.map { it.toMediaItemWithLocal(downloadManager) }
         c.setMediaItems(items, startIndex, startPositionMs.coerceAtLeast(0L))
         c.prepare()
@@ -149,6 +151,67 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
         val target = !c.getShuffleModeEnabled()
         c.setShuffleModeEnabled(target)
         _shuffleEnabled.value = target
+    }
+
+    /** Jump straight to the queue item at [index]. */
+    fun jumpTo(index: Int) {
+        val c = controller ?: return
+        val q = _queue.value
+        if (index !in q.indices) return
+        // media3 has no seekToMediaItem(int); playlist-index seek is seekTo(index, 0).
+        c.seekTo(index, 0L)
+        _current.value = q[index]
+    }
+
+    /** Remove the queue item at [index] (playback keeps going / advances normally). */
+    fun removeAt(index: Int) {
+        val c = controller ?: return
+        val q = _queue.value
+        if (index !in q.indices) return
+        val newList = q.toMutableList().also { it.removeAt(index) }
+        c.removeMediaItem(index)
+        _queue.value = newList
+        val ci = c.currentMediaItemIndex
+        _current.value = newList.getOrNull(ci)
+    }
+
+    /** Move a queue item (drag-free reorder via up/down controls). Rebuilds the queue
+     *  preserving current track + position + play state, which is unambiguous even in
+     *  shuffle mode. */
+    fun moveItem(fromIndex: Int, toIndex: Int) {
+        if (fromIndex == toIndex) return
+        val q = _queue.value.toMutableList()
+        if (fromIndex !in q.indices || toIndex !in q.indices) return
+        val item = q.removeAt(fromIndex)
+        q.add(toIndex, item)
+        rebuildQueue(q)
+    }
+
+    /** Empty the queue and stop playback. */
+    fun clearQueue() {
+        val c = controller ?: return
+        c.clearMediaItems()
+        _queue.value = emptyList()
+        _current.value = null
+        _isPlaying.value = false
+        _positionMs.value = 0L
+        _durationMs.value = 0L
+    }
+
+    /** Re-issue the whole queue from [newList], preserving the current track, its
+     *  position and whether it was playing. */
+    private fun rebuildQueue(newList: List<Track>) {
+        val c = controller ?: return
+        val items = newList.map { it.toMediaItemWithLocal(downloadManager) }
+        val currentId = _current.value?.id
+        val index = newList.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+        val pos = _positionMs.value.coerceAtLeast(0L)
+        val wasPlaying = c.isPlaying
+        c.setMediaItems(items, index, pos)
+        c.prepare()
+        if (wasPlaying) c.play()
+        _queue.value = newList
+        _current.value = newList.getOrNull(index)
     }
 
     fun next() = controller?.seekToNextMediaItem()
@@ -249,7 +312,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
                     _shuffleEnabled.value = c.getShuffleModeEnabled()
                     // Which queue item is active?
                     val idx = c.currentMediaItemIndex
-                    if (idx in queue.indices) _current.value = queue[idx]
+                    if (idx in _queue.value.indices) _current.value = _queue.value[idx]
                     persistIfChanged()
                 }
                 delay(500)
