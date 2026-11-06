@@ -12,6 +12,17 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 > Full overview: **[ABOUT.md](ABOUT.md)** · Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
+## What's new in 1.5.3
+
+- **Home-screen widget** — a mini-player for your launcher: shows the current track + artwork, with **Play/Pause** and **Skip** straight from the home screen (Skip auto-plays the next track; hidden on live) and tap-to-open the app. Stays in sync live with playback.
+- **Shuffle** — on/off toggle on the player.
+- **Live row on an artist page** — when a DJ is live, their newest (in-progress) recording is replaced by a **LIVE** card that plays their stream in one tap (High/Low quality). It's excluded from the queue and from "Continue", so playback never tries the unwritten file.
+- **Up-Next queue** — pull up the queue from the player: reorder (↑/↓), remove, jump to a track, or Clear all.
+- **Track count** — each artist page shows how many tracks are in the list.
+- **Live tab** — your favourite DJs are pinned to the top (♥), and the tab is now list-only for a cleaner layout.
+
+---
+
 ## What's new in 1.5.2
 
 - **Browse (thumbnail grid)** — two artists per row for bigger, cleaner cards; the About-DJ "i" icon moved off the grid cards (still available in list view). Favorite heart stays on every card.
@@ -90,10 +101,10 @@ git clone <this-repo-url>
 Install on a connected device:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/STArchivePlayer-1.5.2-debug.apk
+adb install -r app/build/outputs/apk/debug/STArchivePlayer-1.5.3-debug.apk
 ```
 
-The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.5.2-debug.apk`). To share a build with the public, attach it to a GitHub Release using the **stable filename** `STArchivePlayer-debug.apk` — the Download link above stays correct automatically.
+The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.5.3-debug.apk`). To share a build with the public, attach it to a GitHub Release using the **stable filename** `STArchivePlayer-debug.apk` — the Download link above stays correct automatically.
 
 ---
 
