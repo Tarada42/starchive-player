@@ -8,28 +8,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.ViewHeadline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,12 +37,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,11 +60,6 @@ private val DAD_JOKES = listOf(
     "What do you call fake spaghetti? An impasta.",
 )
 
-private enum class LiveLayout {
-    GRID,
-    LIST,
-}
-
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LiveNowScreen(
@@ -86,8 +71,6 @@ fun LiveNowScreen(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var layout by rememberSaveable { mutableStateOf(LiveLayout.GRID) }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -106,15 +89,6 @@ fun LiveNowScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { layout = if (layout == LiveLayout.GRID) LiveLayout.LIST else LiveLayout.GRID },
-                    ) {
-                        Icon(
-                            imageVector = if (layout == LiveLayout.GRID) Icons.Filled.ViewHeadline else Icons.Filled.GridView,
-                            contentDescription = if (layout == LiveLayout.GRID) "Switch to list" else "Switch to grid",
-                            tint = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
                     OutlinedButton(onClick = onRefresh) {
                         Text(if (isRefreshing) "…" else "Refresh")
                     }
@@ -144,42 +118,25 @@ fun LiveNowScreen(
                 // Pin followed DJs to the top under a group header; everyone else below.
                 val favoriteLive = liveArtists.filter { it.id in favoriteArtistIds }
                 val otherLive = liveArtists.filterNot { it.id in favoriteArtistIds }
-                if (layout == LiveLayout.GRID) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        if (favoriteLive.isNotEmpty()) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                SectionHeader("Your favorites")
-                            }
-                            items(favoriteLive, key = { it.id }) { artist ->
-                                LiveDjCard(
-                                    artist = artist,
-                                    isFavorite = true,
-                                    onPlay = { onPlay(artist) },
-                                    onOpenTwitch = { onOpenTwitch(artist) },
-                                )
-                            }
-                            if (otherLive.isNotEmpty()) {
-                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                    SectionHeader("Other live")
-                                }
-                                items(otherLive, key = { it.id }) { artist ->
-                                    LiveDjCard(
-                                        artist = artist,
-                                        isFavorite = false,
-                                        onPlay = { onPlay(artist) },
-                                        onOpenTwitch = { onOpenTwitch(artist) },
-                                    )
-                                }
-                            }
-                        } else {
-                            items(liveArtists, key = { it.id }) { artist ->
-                                LiveDjCard(
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (favoriteLive.isNotEmpty()) {
+                        item { SectionHeader("Your favorites") }
+                        items(favoriteLive, key = { it.id }) { artist ->
+                            LiveDjListItem(
+                                artist = artist,
+                                isFavorite = true,
+                                onPlay = { onPlay(artist) },
+                                onOpenTwitch = { onOpenTwitch(artist) },
+                            )
+                        }
+                        if (otherLive.isNotEmpty()) {
+                            item { SectionHeader("Other live") }
+                            items(otherLive, key = { it.id }) { artist ->
+                                LiveDjListItem(
                                     artist = artist,
                                     isFavorite = false,
                                     onPlay = { onPlay(artist) },
@@ -187,43 +144,14 @@ fun LiveNowScreen(
                                 )
                             }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (favoriteLive.isNotEmpty()) {
-                            item { SectionHeader("Your favorites") }
-                            items(favoriteLive, key = { it.id }) { artist ->
-                                LiveDjListItem(
-                                    artist = artist,
-                                    isFavorite = true,
-                                    onPlay = { onPlay(artist) },
-                                    onOpenTwitch = { onOpenTwitch(artist) },
-                                )
-                            }
-                            if (otherLive.isNotEmpty()) {
-                                item { SectionHeader("Other live") }
-                                items(otherLive, key = { it.id }) { artist ->
-                                    LiveDjListItem(
-                                        artist = artist,
-                                        isFavorite = false,
-                                        onPlay = { onPlay(artist) },
-                                        onOpenTwitch = { onOpenTwitch(artist) },
-                                    )
-                                }
-                            }
-                        } else {
-                            items(liveArtists, key = { it.id }) { artist ->
-                                LiveDjListItem(
-                                    artist = artist,
-                                    isFavorite = false,
-                                    onPlay = { onPlay(artist) },
-                                    onOpenTwitch = { onOpenTwitch(artist) },
-                                )
-                            }
+                    } else {
+                        items(liveArtists, key = { it.id }) { artist ->
+                            LiveDjListItem(
+                                artist = artist,
+                                isFavorite = false,
+                                onPlay = { onPlay(artist) },
+                                onOpenTwitch = { onOpenTwitch(artist) },
+                            )
                         }
                     }
                 }
@@ -241,109 +169,6 @@ private fun SectionHeader(text: String) {
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(vertical = 4.dp),
     )
-}
-
-@Composable
-private fun LiveDjCard(
-    artist: Artist,
-    isFavorite: Boolean = false,
-    onPlay: () -> Unit,
-    onOpenTwitch: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onPlay),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
-    ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                artist.bestImageUrl?.let { url ->
-                    AsyncImage(
-                        model = url,
-                        contentDescription = artist.displayName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } ?: Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        artist.displayName.take(2).uppercase(),
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                // LIVE badge
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.error)
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    Text(
-                        "LIVE",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onError,
-                    )
-                }
-                if (isFavorite) {
-                    Icon(
-                        imageVector = Icons.Filled.Favorite,
-                        contentDescription = "Favorite",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(8.dp)
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.85f))
-                            .padding(4.dp),
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        artist.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        "on Twitch",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Button(onClick = onPlay) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
-                }
-            }
-        }
-    }
 }
 
 @Composable
