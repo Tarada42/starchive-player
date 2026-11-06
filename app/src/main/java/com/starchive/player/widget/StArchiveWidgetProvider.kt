@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.RemoteViews
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -80,6 +81,7 @@ private data class NowState(
     val artist: String?,
     val artworkUrl: String?,
     val playing: Boolean,
+    val isLive: Boolean = false,
 )
 
 private val EMPTY_STATE = NowState(null, null, null, false)
@@ -139,12 +141,14 @@ private fun currentState(): NowState {
     val cont = synchronized(controllerLock) { controllerRef }
     if (cont != null) {
         return runCatching {
-            val meta = cont.currentMediaItem?.mediaMetadata
+            val item = cont.currentMediaItem
+            val meta = item?.mediaMetadata
             NowState(
                 title = meta?.title?.toString()?.takeIf { it.isNotBlank() },
                 artist = meta?.artist?.toString()?.takeIf { it.isNotBlank() },
                 artworkUrl = meta?.artworkUri?.toString()?.takeIf { it.isNotBlank() },
                 playing = cont.isPlaying,
+                isLive = item?.mediaId?.startsWith("live-") == true,
             )
         }.getOrNull() ?: EMPTY_STATE
     }
@@ -203,15 +207,22 @@ private fun render(context: Context, appWidgetId: Int) {
             flags,
         ),
     )
-    views.setOnClickPendingIntent(
-        R.id.btn_next,
-        PendingIntent.getBroadcast(
-            context, appWidgetId * 3 + 3,
-            Intent(context, StArchiveWidgetProvider::class.java)
-                .setAction(StArchiveWidgetProvider.ACTION_NEXT),
-            flags,
-        ),
-    )
+    // Skip/Next is only meaningful for archive playlists — a live stream has no next
+    // track, so hide the button on live (mirrors the in-app player).
+    if (state.isLive) {
+        views.setViewVisibility(R.id.btn_next, View.GONE)
+    } else {
+        views.setViewVisibility(R.id.btn_next, View.VISIBLE)
+        views.setOnClickPendingIntent(
+            R.id.btn_next,
+            PendingIntent.getBroadcast(
+                context, appWidgetId * 3 + 3,
+                Intent(context, StArchiveWidgetProvider::class.java)
+                    .setAction(StArchiveWidgetProvider.ACTION_NEXT),
+                flags,
+            ),
+        )
+    }
 
     // Artwork download + post run off the main thread; guard everything so a failure
     // cannot crash the app.
