@@ -57,6 +57,8 @@ import com.starchive.player.data.Track
 fun ArtistDetailScreen(
     artist: Artist,
     tracks: List<Track>,
+    isLive: Boolean = false,
+    onPlayLive: () -> Unit = {},
     favorites: Set<String>,
     currentTrackId: String?,
     isPlaying: Boolean,
@@ -138,6 +140,11 @@ fun ArtistDetailScreen(
         ) {
             item {
                 ArtistHeader(artist = artist)
+            }
+            if (isLive) {
+                item {
+                    LiveRow(artist = artist, onClick = onPlayLive)
+                }
             }
             if (resumeTitle != null && onResume != null) {
                 item {
@@ -266,6 +273,64 @@ private fun ArtistHeader(artist: Artist) {
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LiveRow(artist: Artist, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // LIVE badge
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.error)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "LIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onError,
+                )
+            }
+            Spacer(Modifier.size(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${artist.displayName} is live now",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Text(
+                    "Tap to listen live",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = "Listen live",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(28.dp),
             )
         }
     }

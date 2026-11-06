@@ -486,9 +486,27 @@ fun AppNav(
                             is UiState.Error -> Error(s.message, Modifier.fillMaxSize())
                             is UiState.Success -> {
                                 val rp = resumePoint
+                                // While this DJ is live, the newest archive file is the
+                                // recording still being written — it will not play. Drop it
+                                // from the displayed list AND the play queue, and surface a
+                                // distinct LIVE row that starts the live stream instead.
+                                val artistLive = liveArtists.any { it.id == artist.id }
+                                val allTracks = s.data
+                                val displayTracks =
+                                    if (artistLive && allTracks.isNotEmpty()) allTracks.drop(1) else allTracks
+                                // Same drop applied to the resume point (its list is also
+                                // newest-first), so "Continue" never targets the live file.
+                                val rpEffective = if (artistLive) {
+                                    rp?.let {
+                                        if (it.tracks.isEmpty() || it.index <= 0) null
+                                        else it.copy(tracks = it.tracks.drop(1), index = it.index - 1)
+                                    }
+                                } else rp
                                 ArtistDetailScreen(
                                     artist = artist,
-                                    tracks = s.data,
+                                    tracks = displayTracks,
+                                    isLive = artistLive,
+                                    onPlayLive = { liveQualityArtist = artist },
                                     favorites = favoriteTrackIds,
                                     currentTrackId = current?.id,
                                     isPlaying = isPlaying,
@@ -500,10 +518,10 @@ fun AppNav(
                                     onToggleFavorite = { track -> viewModel.toggleFavoriteTrack(track) },
                                     downloadManager = downloadManager,
                                     onDownloadMany = { tracks -> downloadManager.downloadAll(tracks) },
-                                    resumeTitle = rp?.tracks?.getOrNull(rp.index)?.title,
+                                    resumeTitle = rpEffective?.tracks?.getOrNull(rpEffective.index)?.title,
                                     onResume = {
-                                        if (rp != null) {
-                                            manager.play(rp.tracks, rp.index, rp.positionMs)
+                                        if (rpEffective != null) {
+                                            manager.play(rpEffective.tracks, rpEffective.index, rpEffective.positionMs)
                                             navController.navigate(PlayerRoute)
                                         }
                                     },
