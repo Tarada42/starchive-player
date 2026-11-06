@@ -144,7 +144,9 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     /** Toggles shuffle mode on the current queue (Media3 handles the order). */
     fun toggleShuffle() {
         val c = controller ?: return
-        val target = !c.isShuffleModeEnabled
+        // media3 Player API is boolean: getShuffleModeEnabled() / setShuffleModeEnabled(boolean).
+        // (The getter is NOT named isShuffleModeEnabled — that was the compile error.)
+        val target = !c.getShuffleModeEnabled()
         c.setShuffleModeEnabled(target)
         _shuffleEnabled.value = target
     }
@@ -244,7 +246,7 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
                     _isPlaying.value = c.isPlaying
                     _positionMs.value = c.currentPosition.coerceAtLeast(0L)
                     _durationMs.value = c.duration.coerceAtLeast(0L)
-                    _shuffleEnabled.value = c.isShuffleModeEnabled
+                    _shuffleEnabled.value = c.getShuffleModeEnabled()
                     // Which queue item is active?
                     val idx = c.currentMediaItemIndex
                     if (idx in queue.indices) _current.value = queue[idx]
