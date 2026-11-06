@@ -195,7 +195,7 @@ fun ArtistListScreen(
             // row with a thumbnail on the left and the full artist name.
             if (layoutMode == ArtistListLayout.GRID) {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
+                    columns = GridCells.Fixed(2),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -208,7 +208,6 @@ fun ArtistListScreen(
                             isFavorite = favoriteArtistIds.contains(artist.id),
                             onClick = { onArtistClick(artist) },
                             onToggleFavorite = { onToggleFavorite(artist) },
-                            onAboutArtist = { onAboutArtist(artist) },
                         )
                     }
                 }
@@ -231,7 +230,6 @@ private fun ArtistCard(
     isFavorite: Boolean,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onAboutArtist: () -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -268,14 +266,6 @@ private fun ArtistCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                // Info = open the DJ's About page.
-                IconButton(onClick = onAboutArtist) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = "About this DJ",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
                 IconButton(onClick = onToggleFavorite) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
