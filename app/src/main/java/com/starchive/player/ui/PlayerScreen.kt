@@ -127,6 +127,9 @@ fun PlayerScreen(
     val currentVolumeChange by rememberUpdatedState(onAppVolumeChange)
     val currentIndex = queue.indexOfFirst { it.id == track?.id }.takeIf { it >= 0 }
     val nextUpCount = if (currentIndex != null) (queue.size - 1 - currentIndex).coerceAtLeast(0) else 0
+    // A live track has no next/prev and can't be sought, so hide those transport
+    // buttons for live tracks only. Layout is otherwise unchanged.
+    val isLive = track?.id?.startsWith("live-") == true
     Scaffold(
         topBar = {
             TopAppBar(
@@ -281,16 +284,19 @@ fun PlayerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // Main row: prev / rewind / play / forward / next
+                // On a live track, hide prev/next and +/-30s (nothing to skip to, no seeking).
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onPrev, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
-                    }
-                    IconButton(onClick = onSkipBackward, modifier = Modifier.size(52.dp)) {
-                        Icon(Icons.Filled.Replay30, contentDescription = "Back 30 seconds", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                    if (!isLive) {
+                        IconButton(onClick = onPrev, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        }
+                        IconButton(onClick = onSkipBackward, modifier = Modifier.size(52.dp)) {
+                            Icon(Icons.Filled.Replay30, contentDescription = "Back 30 seconds", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        }
                     }
                     Box(
                         modifier = Modifier
@@ -321,11 +327,13 @@ fun PlayerScreen(
                             tint = MaterialTheme.colorScheme.onBackground,
                         )
                     }
-                    IconButton(onClick = onSkipForward, modifier = Modifier.size(52.dp)) {
-                        Icon(Icons.Filled.Forward30, contentDescription = "Forward 30 seconds", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
-                    }
-                    IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.SkipNext, contentDescription = "Next", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                    if (!isLive) {
+                        IconButton(onClick = onSkipForward, modifier = Modifier.size(52.dp)) {
+                            Icon(Icons.Filled.Forward30, contentDescription = "Forward 30 seconds", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        }
+                        IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Filled.SkipNext, contentDescription = "Next", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
+                        }
                     }
                 }
 
