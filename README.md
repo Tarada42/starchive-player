@@ -14,6 +14,7 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 ## What's new in 1.5.3
 
+- **App-only volume** — a volume slider on the player that only affects STArchive (never the system volume); it's remembered between sessions.
 - **Home-screen widget** — a mini-player for your launcher: shows the current track + artwork, with **Play/Pause** and **Skip** straight from the home screen (Skip auto-plays the next track; hidden on live) and tap-to-open the app. Stays in sync live with playback.
 - **Shuffle** — on/off toggle on the player.
 - **Live row on an artist page** — when a DJ is live, their newest (in-progress) recording is replaced by a **LIVE** card that plays their stream in one tap (High/Low quality). It's excluded from the queue and from "Continue", so playback never tries the unwritten file.
