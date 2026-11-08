@@ -41,7 +41,6 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -155,51 +154,14 @@ fun PlayerScreen(
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (volumeDragActive) {
-                    VolumeDragIndicator(volume = volume)
-                    Spacer(Modifier.height(12.dp))
-                }
-                FloatingActionButton(
-                    onClick = {},
-                    modifier = Modifier
-                        .size(56.dp)
-                        .pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onDragStart = {
-                                    dragStartVolume = volume.toFloat()
-                                    dragAccum = 0f
-                                    volumeDragActive = true
-                                },
-                                onVerticalDrag = { _, dragAmount ->
-                                    dragAccum += dragAmount // +ve = dragging down = quieter
-                                    val v = (dragStartVolume - dragAccum / volumePxPerUnit)
-                                        .roundToInt().coerceIn(0, 100)
-                                    if (v != volume) {
-                                        volume = v
-                                        currentVolumeChange(v)
-                                    }
-                                },
-                                onDragEnd = { volumeDragActive = false },
-                                onDragCancel = { volumeDragActive = false },
-                            )
-                        },
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.VolumeDown,
-                        contentDescription = "Volume - press and slide up/down",
-                    )
-                }
-            }
-        },
     ) { padding ->
+        // Wrap content in a Box so the transient volume indicator can float above the
+        // transport row without taking layout space.
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp, vertical = 16.dp)
-                .padding(bottom = 96.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -335,6 +297,40 @@ fun PlayerScreen(
                             Icon(Icons.Filled.SkipNext, contentDescription = "Next", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                         }
                     }
+                    // Volume: app-only player gain, hold + slide up/down. Always shown,
+                    // far-right of the transport row (live and archive).
+                    IconButton(
+                        onClick = {},
+                        modifier = Modifier
+                            .size(52.dp)
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures(
+                                    onDragStart = {
+                                        dragStartVolume = volume.toFloat()
+                                        dragAccum = 0f
+                                        volumeDragActive = true
+                                    },
+                                    onVerticalDrag = { _, dragAmount ->
+                                        dragAccum += dragAmount // +ve = dragging down = quieter
+                                        val v = (dragStartVolume - dragAccum / volumePxPerUnit)
+                                            .roundToInt().coerceIn(0, 100)
+                                        if (v != volume) {
+                                            volume = v
+                                            currentVolumeChange(v)
+                                        }
+                                    },
+                                    onDragEnd = { volumeDragActive = false },
+                                    onDragCancel = { volumeDragActive = false },
+                                )
+                            },
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.VolumeDown,
+                            contentDescription = "Volume - press and slide up/down",
+                            modifier = Modifier.size(30.dp),
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -427,7 +423,20 @@ fun PlayerScreen(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+        }   // end main content Column
+
+        // Volume indicator floats just above the transport row while dragging.
+        if (volumeDragActive) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 200.dp),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                VolumeDragIndicator(volume = volume)
+            }
         }
+        }   // end wrapping Box
     }
 
     if (showUpNext) {
