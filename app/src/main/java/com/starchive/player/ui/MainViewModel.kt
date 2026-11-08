@@ -163,6 +163,10 @@ class MainViewModel(private val repo: Repository) : ViewModel() {
     val artistListLayout: StateFlow<ArtistListLayout> = repo.artistListLayout
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ArtistListLayout.GRID)
 
+    /** App-only playback volume (0..100). */
+    val appVolume: StateFlow<Int> = repo.appVolume
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 100)
+
     val recentSearches: StateFlow<List<String>> = repo.recentSearches
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

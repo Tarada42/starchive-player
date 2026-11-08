@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,7 @@ enum class ArtistListLayout(val key: String) {
 class UserPreferencesDataStore(private val context: Context) {
 
     private val artistLayoutKey = stringPreferencesKey("artist_list_layout")
+    private val appVolumeKey = intPreferencesKey("app_volume")
 
     val artistListLayout: Flow<ArtistListLayout> = context.userPreferencesStore.data.map { prefs ->
         when (prefs[artistLayoutKey]) {
@@ -36,6 +38,17 @@ class UserPreferencesDataStore(private val context: Context) {
     suspend fun setArtistListLayout(layout: ArtistListLayout) {
         context.userPreferencesStore.edit { prefs ->
             prefs[artistLayoutKey] = layout.key
+        }
+    }
+
+    /** App-only playback volume (0..100) — applied as player gain, never the system volume. */
+    val appVolume: Flow<Int> = context.userPreferencesStore.data.map { prefs ->
+        (prefs[appVolumeKey] ?: 100).coerceIn(0, 100)
+    }
+
+    suspend fun setAppVolume(percent: Int) {
+        context.userPreferencesStore.edit { prefs ->
+            prefs[appVolumeKey] = percent.coerceIn(0, 100)
         }
     }
 }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -52,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,6 +88,7 @@ fun PlayerScreen(
     sleepTimerRemainingMs: Long?,
     shuffleEnabled: Boolean,
     queue: List<Track>,
+    appVolume: Int,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -102,10 +105,12 @@ fun PlayerScreen(
     onRemoveAt: (Int) -> Unit,
     onMoveItem: (Int, Int) -> Unit,
     onClearQueue: () -> Unit,
+    onAppVolumeChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var showUpNext by remember { mutableStateOf(false) }
+    var volume by rememberSaveable(appVolume) { mutableStateOf(appVolume) }
     val currentIndex = queue.indexOfFirst { it.id == track?.id }.takeIf { it >= 0 }
     val nextUpCount = if (currentIndex != null) (queue.size - 1 - currentIndex).coerceAtLeast(0) else 0
     Scaffold(
@@ -212,6 +217,41 @@ fun PlayerScreen(
                 ) {
                     Text(formatTime(positionMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(formatTime(durationMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                // App-only volume: player gain, never touches the system volume.
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeDown,
+                        contentDescription = "Volume",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Slider(
+                        value = volume.toFloat(),
+                        onValueChange = { v ->
+                            volume = v.toInt()
+                            onAppVolumeChange(volume)
+                        },
+                        valueRange = 0f..100f,
+                        colors = androidx.compose.material3.SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "$volume%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(40.dp),
+                        textAlign = TextAlign.End,
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))

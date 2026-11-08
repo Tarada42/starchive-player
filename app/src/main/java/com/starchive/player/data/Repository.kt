@@ -244,6 +244,10 @@ class Repository(
     suspend fun setArtistListLayout(layout: ArtistListLayout) =
         userPreferencesDataStore.setArtistListLayout(layout)
 
+    val appVolume: Flow<Int> = userPreferencesDataStore.appVolume
+
+    suspend fun setAppVolume(percent: Int) = userPreferencesDataStore.setAppVolume(percent)
+
     // Playback resume state (last track/position, per-artist positions, recent history)
     val lastTrackId: Flow<String?> = playbackStateDataStore.lastTrackId
     val lastArtistId: Flow<String?> = playbackStateDataStore.lastArtistId

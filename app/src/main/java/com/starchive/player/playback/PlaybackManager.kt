@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -65,6 +66,8 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     private var pendingPlay: Pair<List<Track>, Int>? = null
     private var lastPersistedTrackId: String? = null
     private var wasRemotePlayback = false
+    // App-only playback volume (0..100) — applied as player gain, never system volume.
+    private var appVolumePercent = 100
     // Last values we told the home-screen widget about, so we only re-render on change.
     private var lastWidgetTrackId: String? = null
     private var lastWidgetPlaying = false
@@ -106,6 +109,11 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
             controller = future.get()
             val c = controller ?: return@addListener
             c.addListener(deviceInfoListener)
+            // Apply the persisted app-only volume once the session is bound.
+            scope.launch {
+                appVolumePercent = repository.appVolume.first().coerceIn(0, 100)
+                c.volume = appVolumePercent / 100f
+            }
             wasRemotePlayback = c.deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE
             startPositionTicker()
             startSleepTimerTicker()
@@ -225,6 +233,14 @@ class PlaybackManager(private val context: Context, private val scope: Coroutine
     fun skipBackward(millis: Long = 30_000L) = controller?.seekTo((controller?.currentPosition?.minus(millis) ?: 0L).coerceAtLeast(0L))
 
     fun seekTo(ms: Long) = controller?.seekTo(ms)
+
+    /** App-only volume (0..100): applied as player gain — never touches the system volume. */
+    fun setAppVolume(percent: Int) {
+        val p = percent.coerceIn(0, 100)
+        appVolumePercent = p
+        controller?.volume = p / 100f
+        scope.launch { repository.setAppVolume(p) }
+    }
 
     fun stop() {
         val c = controller
