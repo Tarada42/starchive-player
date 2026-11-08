@@ -297,40 +297,6 @@ fun PlayerScreen(
                             Icon(Icons.Filled.SkipNext, contentDescription = "Next", modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onBackground)
                         }
                     }
-                    // Volume: app-only player gain, hold + slide up/down. Always shown,
-                    // far-right of the transport row (live and archive).
-                    IconButton(
-                        onClick = {},
-                        modifier = Modifier
-                            .size(52.dp)
-                            .pointerInput(Unit) {
-                                detectVerticalDragGestures(
-                                    onDragStart = {
-                                        dragStartVolume = volume.toFloat()
-                                        dragAccum = 0f
-                                        volumeDragActive = true
-                                    },
-                                    onVerticalDrag = { _, dragAmount ->
-                                        dragAccum += dragAmount // +ve = dragging down = quieter
-                                        val v = (dragStartVolume - dragAccum / volumePxPerUnit)
-                                            .roundToInt().coerceIn(0, 100)
-                                        if (v != volume) {
-                                            volume = v
-                                            currentVolumeChange(v)
-                                        }
-                                    },
-                                    onDragEnd = { volumeDragActive = false },
-                                    onDragCancel = { volumeDragActive = false },
-                                )
-                            },
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.VolumeDown,
-                            contentDescription = "Volume - press and slide up/down",
-                            modifier = Modifier.size(30.dp),
-                            tint = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -390,6 +356,40 @@ fun PlayerScreen(
                             contentDescription = "Share",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(32.dp),
+                        )
+                    }
+                    // App-only volume: hold + slide up/down. Far-right here (not the transport
+                    // row, which is full on archive), so it stays visible for live AND archive.
+                    IconButton(
+                        onClick = {},
+                        modifier = Modifier
+                            .size(56.dp)
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures(
+                                    onDragStart = {
+                                        dragStartVolume = volume.toFloat()
+                                        dragAccum = 0f
+                                        volumeDragActive = true
+                                    },
+                                    onVerticalDrag = { _, dragAmount ->
+                                        dragAccum += dragAmount // +ve = dragging down = quieter
+                                        val v = (dragStartVolume - dragAccum / volumePxPerUnit)
+                                            .roundToInt().coerceIn(0, 100)
+                                        if (v != volume) {
+                                            volume = v
+                                            currentVolumeChange(v)
+                                        }
+                                    },
+                                    onDragEnd = { volumeDragActive = false },
+                                    onDragCancel = { volumeDragActive = false },
+                                )
+                            },
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.VolumeDown,
+                            contentDescription = "Volume - press and slide up/down",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(30.dp),
                         )
                     }
                 }
