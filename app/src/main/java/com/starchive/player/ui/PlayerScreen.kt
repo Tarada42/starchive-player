@@ -2,6 +2,7 @@ package com.starchive.player.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,12 +41,14 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -53,6 +57,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,13 +66,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.content.res.Configuration
 import coil.compose.AsyncImage
+import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.ui.platform.LocalContext
@@ -111,6 +119,12 @@ fun PlayerScreen(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var showUpNext by remember { mutableStateOf(false) }
     var volume by rememberSaveable(appVolume) { mutableStateOf(appVolume) }
+    val density = LocalDensity.current
+    val volumePxPerUnit = with(density) { 3.dp.toPx() } // 1% volume per 3dp of slide
+    var volumeDragActive by remember { mutableStateOf(false) }
+    var dragStartVolume by remember { mutableStateOf(0f) }
+    var dragAccum by remember { mutableStateOf(0f) }
+    val currentVolumeChange by rememberUpdatedState(onAppVolumeChange)
     val currentIndex = queue.indexOfFirst { it.id == track?.id }.takeIf { it >= 0 }
     val nextUpCount = if (currentIndex != null) (queue.size - 1 - currentIndex).coerceAtLeast(0) else 0
     Scaffold(
@@ -138,12 +152,51 @@ fun PlayerScreen(
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (volumeDragActive) {
+                    VolumeDragIndicator(volume = volume)
+                    Spacer(Modifier.height(12.dp))
+                }
+                FloatingActionButton(
+                    onClick = {},
+                    modifier = Modifier
+                        .size(56.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragStart = {
+                                    dragStartVolume = volume.toFloat()
+                                    dragAccum = 0f
+                                    volumeDragActive = true
+                                },
+                                onVerticalDrag = { _, dragAmount ->
+                                    dragAccum += dragAmount // +ve = dragging down = quieter
+                                    val v = (dragStartVolume - dragAccum / volumePxPerUnit)
+                                        .roundToInt().coerceIn(0, 100)
+                                    if (v != volume) {
+                                        volume = v
+                                        currentVolumeChange(v)
+                                    }
+                                },
+                                onDragEnd = { volumeDragActive = false },
+                                onDragCancel = { volumeDragActive = false },
+                            )
+                        },
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeDown,
+                        contentDescription = "Volume - press and slide up/down",
+                    )
+                }
+            }
+        },
     ) { padding ->
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(bottom = 96.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -217,41 +270,6 @@ fun PlayerScreen(
                 ) {
                     Text(formatTime(positionMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(formatTime(durationMs), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-
-                // App-only volume: player gain, never touches the system volume.
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.VolumeDown,
-                        contentDescription = "Volume",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Slider(
-                        value = volume.toFloat(),
-                        onValueChange = { v ->
-                            volume = v.toInt()
-                            onAppVolumeChange(volume)
-                        },
-                        valueRange = 0f..100f,
-                        colors = androidx.compose.material3.SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = "$volume%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(40.dp),
-                        textAlign = TextAlign.End,
-                    )
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -624,6 +642,58 @@ private fun SleepTimerControl(
                         onSet(minutes)
                         expanded = false
                     },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VolumeDragIndicator(volume: Int) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shadowElevation = 8.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Vertical bar: fills from the bottom, up = louder.
+            Box(
+                modifier = Modifier
+                    .width(10.dp)
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(MaterialTheme.colorScheme.surface),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxHeight(volume / 100f)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowUp,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = "$volume%",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
