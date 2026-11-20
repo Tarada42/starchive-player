@@ -100,6 +100,15 @@ class PlaybackService : MediaLibraryService() {
 
         // Car player buttons: a state-aware favorite heart plus Stop. The host draws no
         // stop control of its own, and Stop must end playback rather than just pause.
+        // A stop from the car (or anywhere) should not leave a resume point behind.
+        exoPlayer.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_IDLE && exoPlayer.mediaItemCount > 0) {
+                    serviceScope.launch { runCatching { repository.clearLastPlayback() } }
+                }
+            }
+        })
+
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, librarySessionCallback!!)
             .setSessionActivity(openAppIntent!!)
             .setCustomLayout(librarySessionCallback!!.customLayout(favoriteFilled = false))

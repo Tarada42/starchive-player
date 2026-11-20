@@ -264,9 +264,11 @@ class MediaLibrarySessionCallback(
             .setDisplayName(context.getString(R.string.aa_favorite))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_FAVORITE, Bundle.EMPTY))
             .build()
+        // Player-command button so the host renders it with the transport controls
+        // (play/pause styling) instead of as a secondary custom-action chip.
         val stop = CommandButton.Builder(CommandButton.ICON_STOP)
             .setDisplayName(context.getString(R.string.aa_stop))
-            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
+            .setPlayerCommand(Player.COMMAND_STOP)
             .build()
         return listOf(favorite, stop)
     }
