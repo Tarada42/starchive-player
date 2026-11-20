@@ -209,7 +209,7 @@ class MediaLibrarySessionCallback(
                 }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
-            PlaybackService.COMMAND_AA_FAVORITE -> {
+            PlaybackService.COMMAND_AA_FAVORITE -> future {
                 val mediaId = session.player.currentMediaItem?.mediaId
                 val nowFavorite = if (mediaId == null) {
                     false
@@ -228,7 +228,7 @@ class MediaLibrarySessionCallback(
                 // Reflect the new state in the button; a legacy (car) controller may ignore
                 // this update, in which case only the action takes effect.
                 runCatching { session.setCustomLayout(controller, customLayout(nowFavorite)) }
-                Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
+                SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
             }
             PlaybackService.COMMAND_AA_STOP -> {
                 // Halt playback but keep the current item in the session. Clearing it makes
