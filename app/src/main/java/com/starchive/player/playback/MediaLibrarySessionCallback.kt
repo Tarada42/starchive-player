@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 
@@ -338,11 +339,37 @@ class MediaLibrarySessionCallback(
                 repository.loadArtists()
                 val artist = repository.artists.value.find { it.id == artistId }
                     ?: Artist(artistId, artistId.replace('_', ' '), null, null)
-                repository.tracks(artist).map { it.toArchiveMediaItem() }
+                val sets = repository.tracks(artist).map { it.toArchiveMediaItem() }
+                // Mirror the phone: when this DJ is streaming right now, their live stream sits
+                // at the top of the folder, above the archived sets.
+                val liveEntry = liveEntryFor(artistId)
+                if (liveEntry != null) {
+                    listOf(liveEntry.toLiveMediaItem(repository)) + sets
+                } else {
+                    sets
+                }
             } else {
                 emptyList()
             }
         }
+    }
+
+    /**
+     * The cached live roster entry for [artistId], if that DJ is streaming right now.
+     *
+     * Browsing must not block on the live server, so the cached roster is used. Only when
+     * the cache is still empty (first browse after connecting) does this kick off a fetch
+     * and wait briefly for it; a slow or dead live server just means no live row this time.
+     */
+    private suspend fun liveEntryFor(artistId: String): Artist? {
+        var roster = repository.liveArtists.value
+        if (roster.isEmpty()) {
+            serviceScope.launch { runCatching { repository.loadLive() } }
+            roster = withTimeoutOrNull(LIVE_ROSTER_WAIT_MS) {
+                repository.liveArtists.first { it.isNotEmpty() }
+            } ?: repository.liveArtists.value
+        }
+        return roster.firstOrNull { it.id.equals(artistId, ignoreCase = true) }
     }
 
     private suspend fun resolveMediaItem(mediaId: String): MediaItem? = when {
@@ -445,6 +472,9 @@ class MediaLibrarySessionCallback(
         private const val ID_FAVORITES = "favorites"
         private const val ARTIST_FOLDER_PREFIX = "artist-"
         private const val LIVE_PREFIX = "live-"
+
+        /** Bounded wait for a first-time live fetch while browsing an artist folder. */
+        private const val LIVE_ROSTER_WAIT_MS = 2500L
 
     }
 }
