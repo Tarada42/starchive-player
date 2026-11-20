@@ -313,8 +313,18 @@ class MediaLibrarySessionCallback(
                 .map { it.toArtistFolderMediaItem() }
         }
         ID_FAVORITES -> {
-            val ids = repository.favoriteTracks.first()
-            repository.favoriteTrackObjects(ids).map { it.toArchiveMediaItem() }
+            // Car favourites are DJs, so this folder lists favourite artists as browsable
+            // folders. Track favourites stay a phone-only concept and are not listed here.
+            val ids = repository.favoriteArtists.first()
+            if (ids.isEmpty()) {
+                emptyList()
+            } else {
+                repository.loadArtists()
+                val byId = repository.artists.value.associateBy { it.id.lowercase() }
+                ids.mapNotNull { id ->
+                    byId[id.lowercase()]?.toArtistFolderMediaItem()
+                }
+            }
         }
         else -> {
             if (parentId.startsWith(ARTIST_FOLDER_PREFIX)) {
