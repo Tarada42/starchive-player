@@ -34,7 +34,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Play requires R8 code optimisation and obfuscation (the "DEX code
+            // optimization" vitals check); with minify off the app reports 0% obfuscation.
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
