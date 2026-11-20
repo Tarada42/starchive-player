@@ -233,11 +233,14 @@ class MediaLibrarySessionCallback(
                 SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
             }
             PlaybackService.COMMAND_AA_STOP -> {
-                // Halt playback but keep the current item in the session. Clearing it makes
-                // the car host try to reload a now-playing item that no longer exists, which
-                // surfaces as "Could not load your selection".
+                val wasLive = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
                 session.player.pause()
                 session.player.stop()
+                if (wasLive) {
+                    // Leaving a stopped live item in the session keeps the car on the player
+                    // screen. Dropping it closes the player and returns to the browse list.
+                    session.player.clearMediaItems()
+                }
                 serviceScope.launch { repository.clearLastPlayback() }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
@@ -264,11 +267,12 @@ class MediaLibrarySessionCallback(
             .setDisplayName(context.getString(R.string.aa_favorite))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_FAVORITE, Bundle.EMPTY))
             .build()
-        // Player-command button so the host renders it with the transport controls
-        // (play/pause styling) instead of as a secondary custom-action chip.
+        // Custom-layout button rather than a player command: the host drops the transport
+        // stop for live (non-seekable) items, so this is the only way to guarantee a Stop
+        // control is present for both archive sets and live streams.
         val stop = CommandButton.Builder(CommandButton.ICON_STOP)
             .setDisplayName(context.getString(R.string.aa_stop))
-            .setPlayerCommand(Player.COMMAND_STOP)
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
             .build()
         return listOf(favorite, stop)
     }
