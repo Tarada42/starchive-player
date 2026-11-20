@@ -256,8 +256,17 @@ class MediaLibrarySessionCallback(
         }
         ID_ARTISTS -> {
             repository.loadArtists()
+            // Newest activity first, not A-Z. Prefer the newest set's date when the
+            // repository already knows it, otherwise the artist folder's source date.
+            // loadLatestDates() walks every artist, so it is warmed in the background
+            // instead of blocking the browse request.
+            serviceScope.launch { runCatching { repository.loadLatestDates() } }
+            val newestByArtist = repository.latestDateByArtist.value
             repository.artists.value
-                .sortedBy { it.displayName.lowercase() }
+                .sortedWith(
+                    compareByDescending<Artist> { newestByArtist[it.id] ?: it.sourceDateMillis }
+                        .thenBy { it.displayName.lowercase() }
+                )
                 .map { it.toArtistFolderMediaItem() }
         }
         ID_FAVORITES -> {
