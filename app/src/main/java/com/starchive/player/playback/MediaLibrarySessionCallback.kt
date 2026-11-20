@@ -87,7 +87,7 @@ class MediaLibrarySessionCallback(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo,
         mediaItems: List<MediaItem>,
-    ): ListenableFuture<List<MediaItem>> = future { mediaItems }
+    ): ListenableFuture<List<MediaItem>> = future { resolveIncoming(mediaItems) }
 
     override fun onSetMediaItems(
         mediaSession: MediaSession,
@@ -96,7 +96,10 @@ class MediaLibrarySessionCallback(
         startIndex: Int,
         startPositionMs: Long,
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = future {
-        val item = mediaItems.getOrNull(startIndex) ?: mediaItems.firstOrNull()
+        // The legacy player path (playFromMediaId) delivers items with a mediaId only and
+        // no URI; they must be resolved before ExoPlayer builds a MediaSource.
+        val resolved = resolveIncoming(mediaItems)
+        val item = resolved.getOrNull(startIndex) ?: resolved.firstOrNull()
         if (item == null) {
             return@future MediaSession.MediaItemsWithStartPosition(emptyList(), 0, startPositionMs)
         }
@@ -105,8 +108,8 @@ class MediaLibrarySessionCallback(
         if (mediaId.startsWith(LIVE_PREFIX)) {
             // Live: single-item queue.
             return@future MediaSession.MediaItemsWithStartPosition(
-                mediaItems,
-                startIndex,
+                resolved,
+                startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0)),
                 startPositionMs,
             )
         }
@@ -115,8 +118,8 @@ class MediaLibrarySessionCallback(
         // The phone UI builds its own queues via PlaybackManager and must not be overridden.
         if (!mediaSession.isAutoCompanionController(controller) && !mediaSession.isAutomotiveController(controller)) {
             return@future MediaSession.MediaItemsWithStartPosition(
-                mediaItems,
-                startIndex,
+                resolved,
+                startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0)),
                 startPositionMs,
             )
         }
@@ -125,8 +128,8 @@ class MediaLibrarySessionCallback(
         val track = repository.trackById(mediaId)
         if (track == null) {
             return@future MediaSession.MediaItemsWithStartPosition(
-                mediaItems,
-                startIndex,
+                resolved,
+                startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0)),
                 startPositionMs,
             )
         }
@@ -134,8 +137,8 @@ class MediaLibrarySessionCallback(
         val tracks = repository.tracks(artist)
         if (tracks.isEmpty()) {
             return@future MediaSession.MediaItemsWithStartPosition(
-                mediaItems,
-                startIndex,
+                resolved,
+                startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0)),
                 startPositionMs,
             )
         }
@@ -224,6 +227,16 @@ class MediaLibrarySessionCallback(
 
     private fun <T> future(block: suspend () -> T): ListenableFuture<T> =
         executor.submit(Callable { runBlocking(Dispatchers.IO) { block() } })
+
+    /** Replace mediaId-only items with fully resolved items that carry a URI. */
+    private suspend fun resolveIncoming(mediaItems: List<MediaItem>): List<MediaItem> =
+        mediaItems.map { item ->
+            if (item.localConfiguration != null) {
+                item
+            } else {
+                resolveMediaItem(item.mediaId) ?: item
+            }
+        }
 
     private suspend fun loadChildren(parentId: String): List<MediaItem> = when (parentId) {
         ID_ROOT -> listOf(liveNowFolder(), artistsFolder(), favoritesFolder())
