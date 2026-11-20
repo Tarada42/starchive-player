@@ -100,7 +100,7 @@ Grab the latest Android app. The links below always point to the most recent bui
 - **Cast** — stream live (MP3 & Ogg) and archive sets to Chromecast/Google Cast devices from the phone app; track switches follow the device, and stopping a cast resumes the last track locally
 - **Search** with persistent recent searches
 - **Hamburger drawer & overflow menu** — Settings and About (app version, Twitch/Discord/web links) from the phone app
-- **Android Auto** — full media module with Artists / Live / Favourites tabs, artist grid/list toggle, sort cycling, quality picker, and a plain-list player with -10 s / +10 s / play-pause / stop
+- **Android Auto** — built on a Media3 `MediaLibraryService`, so the car draws its own media player: DJ artwork, a seekable progress bar, ±30 s skip, previous/next, a Stop button, and an artist-only favourite heart. Browse **Live now**, **Artists** (newest first) and **Favorites**; a DJ who is streaming today shows their live stream at the top of their folder.
 - **Background playback** with notification + lock-screen controls
 
 ---
@@ -109,7 +109,7 @@ Grab the latest Android app. The links below always point to the most recent bui
 
 Kotlin · Jetpack Compose (Material 3) · Media3/ExoPlayer + `MediaLibraryService` · Google Cast · OkHttp · jsoup · Coil · Jetpack DataStore
 
-- **Min SDK:** 26 · **Target SDK:** 35
+- **Min SDK:** 26 · **Target SDK:** 36
 - JDK 21 required to build
 
 ---
@@ -124,10 +124,10 @@ git clone <this-repo-url>
 Install on a connected device:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/STArchivePlayer-1.5.4-debug.apk
+adb install -r app/build/outputs/apk/debug/STArchivePlayer-1.5.6-debug.apk
 ```
 
-The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.5.4-debug.apk`). To share a build with the public, attach it to a GitHub Release using the **stable filename** `STArchivePlayer-debug.apk` — the Download link above stays correct automatically.
+The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchivePlayer-1.5.6-debug.apk`). To share a build with the public, attach it to a GitHub Release using the **stable filename** `STArchivePlayer-debug.apk` — the Download link above stays correct automatically.
 
 ---
 
