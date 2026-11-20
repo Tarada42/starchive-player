@@ -157,7 +157,7 @@ class MediaLibrarySessionCallback(
             .build()
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
             .add(Player.COMMAND_STOP)
-            .add(Player.COMMAND_SEEK_TO)
+            .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
             .add(Player.COMMAND_SEEK_BACK)
             .add(Player.COMMAND_SEEK_FORWARD)
             .add(Player.COMMAND_SEEK_TO_PREVIOUS)
@@ -325,7 +325,7 @@ class MediaLibrarySessionCallback(
             .setArtworkUri(bestImageUrl?.let { Uri.parse(it) })
             .setIsBrowsable(false)
             .setIsPlayable(true)
-            .setMediaType(MediaMetadata.MEDIA_TYPE_AUDIO)
+            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
             .build()
         return MediaItem.Builder()
             .setUri(repository.liveStreamUrlHigh(id))
@@ -342,7 +342,7 @@ class MediaLibrarySessionCallback(
             .setArtworkUri(thumbnailUrl?.let { Uri.parse(it) })
             .setIsBrowsable(false)
             .setIsPlayable(true)
-            .setMediaType(MediaMetadata.MEDIA_TYPE_AUDIO)
+            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
             .build()
         return MediaItem.Builder()
             .setUri(url)
@@ -361,7 +361,7 @@ class MediaLibrarySessionCallback(
         private const val LIVE_PREFIX = "live-"
 
         private val LIVE_BLOCKED_COMMANDS = setOf(
-            Player.COMMAND_SEEK_TO,
+            Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
             Player.COMMAND_SEEK_BACK,
             Player.COMMAND_SEEK_FORWARD,
             Player.COMMAND_SEEK_TO_PREVIOUS,
