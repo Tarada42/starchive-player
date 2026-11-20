@@ -210,20 +210,22 @@ class MediaLibrarySessionCallback(
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
             PlaybackService.COMMAND_AA_FAVORITE -> future {
+                // Artist-only favouriting in the car: a heart means "I like this DJ",
+                // whether the playing item is a live stream or one of their archive sets.
                 val mediaId = session.player.currentMediaItem?.mediaId
-                val nowFavorite = if (mediaId == null) {
-                    false
-                } else if (mediaId.startsWith(LIVE_PREFIX)) {
-                    val artistId = mediaId.removePrefix(LIVE_PREFIX)
+                val artistId = when {
+                    mediaId == null -> null
+                    mediaId.startsWith(LIVE_PREFIX) -> mediaId.removePrefix(LIVE_PREFIX)
+                    else -> repository.trackById(mediaId)?.artistId
+                }
+                var nowFavorite = false
+                if (artistId != null) {
                     val current = repository.favoriteArtists.first()
-                    val artist = repository.liveArtists.value.find { it.id == artistId }
-                        ?: repository.artists.value.find { it.id == artistId }
-                    if (artist != null) repository.toggleFavoriteArtist(artist)
-                    artistId !in current
-                } else {
-                    val current = repository.favoriteTracks.first()
-                    repository.trackById(mediaId)?.let { repository.toggleFavoriteTrack(it) }
-                    mediaId !in current
+                    nowFavorite = artistId !in current
+                    val artist = repository.artists.value.find { it.id.equals(artistId, ignoreCase = true) }
+                        ?: repository.liveArtists.value.find { it.id.equals(artistId, ignoreCase = true) }
+                        ?: Artist(artistId, artistId.replace('_', ' '), thumbnailUrl = null, twitchAvatarUrl = null)
+                    repository.toggleFavoriteArtist(artist)
                 }
                 // Reflect the new state in the button; a legacy (car) controller may ignore
                 // this update, in which case only the action takes effect.
