@@ -18,6 +18,7 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 - **Stop in the car** — a Stop button that ends playback, including on live streams, and takes you back to the list.
 - **Favorite DJs from the car** — the heart in the car player favourites the **DJ** (never a single set); they appear in the car's Favorites folder and in the phone's Favorite Artists.
 - **Newest first** — artists in the car are ordered by most recently updated, and each DJ's sets newest first.
+- **Live at the top of a DJ** — if a DJ is streaming right now, their live stream is the first entry inside their folder in the car, exactly like on the phone.
 - **Smaller download** — release builds are now optimised and obfuscated with R8.
 
 ---
