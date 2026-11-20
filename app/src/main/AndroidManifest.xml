@@ -9,10 +9,9 @@
          the notification shade when pulling down. Without it the media controls may
          show on the lock screen but be hidden in the shade. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="androidx.car.app.MEDIA_TEMPLATES" />
 
-    <!-- Single-APK templated media app: the templates host must be optional so the
-         app still distributes to phones that don't have Android Automotive OS. -->
+    <!-- Host-rendered Android Auto media app: the media browser host must be optional so the
+         app still distributes to phones that don't have Android Auto. -->
     <uses-feature
         android:name="android.software.car.templates_host.media"
         android:required="false" />
@@ -41,13 +40,10 @@
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="com.starchive.player.playback.CastOptionsProvider" />
 
-        <!-- Android Auto: declare this app as a media app and set the minimum Car App API level. -->
+        <!-- Android Auto: declare this app as a host-rendered media app. -->
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
-        <meta-data
-            android:name="androidx.car.app.minCarApiLevel"
-            android:value="8" />
 
         <activity
             android:name=".MainActivity"
@@ -59,39 +55,19 @@
             </intent-filter>
         </activity>
 
-        <!-- Media3 MediaSessionService: background playback + lock-screen / notification
-             controls on the phone. Android Auto support has been removed. -->
+        <!-- Media3 MediaLibraryService: background playback + lock-screen / notification
+             controls on the phone, plus the browse tree / session for Android Auto. -->
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="androidx.media3.session.MediaLibraryService" />
             </intent-filter>
         </service>
 
-        <!-- Android Auto: Car App Library entry point. Uses the same PlaybackService MediaSession. -->
-        <service
-            android:name=".aa.StArchiveCarAppService"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="androidx.car.app.CarAppService" />
-                <category android:name="androidx.car.app.category.MEDIA" />
-            </intent-filter>
-        </service>
-
-        <!-- Exposes cached avatar images to the Android Auto host as content:// URIs. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.aa.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/aa_file_paths" />
-        </provider>
-
-        <!-- Home-screen mini-player widget (drives the same PlaybackService MediaSession). -->
+        <!-- Home-screen mini-player widget (drives the same PlaybackService MediaLibrarySession). -->
         <receiver
             android:name=".widget.StArchiveWidgetProvider"
             android:exported="false">

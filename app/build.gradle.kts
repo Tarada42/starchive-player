@@ -107,12 +107,8 @@ dependencies {
     implementation("androidx.media3:media3-cast:1.4.1")
     implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
 
-    // Android Auto — Car App Library templates (MEDIA category; minCarApiLevel 8)
-    implementation("androidx.car.app:app:1.8.0-rc01")
-
-    // Bridges suspend functions to ListenableFuture for the MediaLibrarySession callbacks
-    // that Android Auto / the Media3 framework invoke.
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.8.1")
+    // No coroutines-guava: the MediaLibrarySession callbacks bridge to ListenableFuture
+    // with a small listening executor, so no extra dependency is needed.
 
     // Networking + HTML parsing (Apache autoindex scraping)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
