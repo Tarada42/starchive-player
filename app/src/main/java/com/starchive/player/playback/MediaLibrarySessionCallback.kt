@@ -205,10 +205,11 @@ class MediaLibrarySessionCallback(
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
             PlaybackService.COMMAND_AA_STOP -> {
-                // Full stop: tear down playback and clear the resume state so the car
-                // returns to the browse screen instead of offering a paused stream.
+                // Halt playback but keep the current item in the session. Clearing it makes
+                // the car host try to reload a now-playing item that no longer exists, which
+                // surfaces as "Could not load your selection".
+                session.player.pause()
                 session.player.stop()
-                session.player.clearMediaItems()
                 serviceScope.launch { repository.clearLastPlayback() }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
