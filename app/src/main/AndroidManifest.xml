@@ -64,6 +64,9 @@
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="androidx.media3.session.MediaLibraryService" />
+                <!-- Android Auto / AAOS discover media apps through the platform browser
+                     action; the media3 actions alone are not always enough for discovery. -->
+                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
 
