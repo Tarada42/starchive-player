@@ -177,15 +177,10 @@ class MediaLibrarySessionCallback(
         if (playerCommand == Player.COMMAND_STOP) {
             // Mirror the service-side stop behavior: clear the persisted resume state.
             serviceScope.launch { repository.clearLastPlayback() }
-            return SessionResult.RESULT_SUCCESS
         }
-
-        // Live streams only support play/pause and stop.
-        if (session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true) {
-            if (playerCommand in LIVE_BLOCKED_COMMANDS) {
-                return SessionResult.RESULT_ERROR_NOT_SUPPORTED
-            }
-        }
+        // Do not reject commands here. Returning an error mid-batch makes the car host
+        // abort the whole selection ("Could not load your selection"). Live streams hide
+        // seek/skip on their own because the item is non-seekable and the queue has one item.
         return SessionResult.RESULT_SUCCESS
     }
 
@@ -360,14 +355,5 @@ class MediaLibrarySessionCallback(
         private const val ARTIST_FOLDER_PREFIX = "artist-"
         private const val LIVE_PREFIX = "live-"
 
-        private val LIVE_BLOCKED_COMMANDS = setOf(
-            Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
-            Player.COMMAND_SEEK_BACK,
-            Player.COMMAND_SEEK_FORWARD,
-            Player.COMMAND_SEEK_TO_PREVIOUS,
-            Player.COMMAND_SEEK_TO_NEXT,
-            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
-        )
     }
 }
