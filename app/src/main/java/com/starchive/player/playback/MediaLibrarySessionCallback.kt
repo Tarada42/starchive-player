@@ -1,5 +1,6 @@
 package com.starchive.player.playback
 
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.media3.common.MediaItem
@@ -7,6 +8,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
@@ -17,6 +19,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.ListeningExecutorService
 import com.google.common.util.concurrent.MoreExecutors
+import com.starchive.player.R
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
 import com.starchive.player.data.Track
@@ -37,6 +40,7 @@ import java.util.concurrent.Executors
  */
 @UnstableApi
 class MediaLibrarySessionCallback(
+    private val context: Context,
     private val repository: Repository,
     private val serviceScope: CoroutineScope,
     private val sleepTimer: SleepTimer,
@@ -158,6 +162,7 @@ class MediaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.COMMAND_CANCEL_SLEEP_TIMER, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_GET_SLEEP_TIMER_REMAINING, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
+            .add(SessionCommand(PlaybackService.COMMAND_AA_FAVORITE, Bundle.EMPTY))
             .build()
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
             .add(Player.COMMAND_STOP)
@@ -204,6 +209,27 @@ class MediaLibrarySessionCallback(
                 }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
+            PlaybackService.COMMAND_AA_FAVORITE -> {
+                val mediaId = session.player.currentMediaItem?.mediaId
+                val nowFavorite = if (mediaId == null) {
+                    false
+                } else if (mediaId.startsWith(LIVE_PREFIX)) {
+                    val artistId = mediaId.removePrefix(LIVE_PREFIX)
+                    val current = repository.favoriteArtists.first()
+                    val artist = repository.liveArtists.value.find { it.id == artistId }
+                        ?: repository.artists.value.find { it.id == artistId }
+                    if (artist != null) repository.toggleFavoriteArtist(artist)
+                    artistId !in current
+                } else {
+                    val current = repository.favoriteTracks.first()
+                    repository.trackById(mediaId)?.let { repository.toggleFavoriteTrack(it) }
+                    mediaId !in current
+                }
+                // Reflect the new state in the button; a legacy (car) controller may ignore
+                // this update, in which case only the action takes effect.
+                runCatching { session.setCustomLayout(controller, customLayout(nowFavorite)) }
+                Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
+            }
             PlaybackService.COMMAND_AA_STOP -> {
                 // Halt playback but keep the current item in the session. Clearing it makes
                 // the car host try to reload a now-playing item that no longer exists, which
@@ -226,6 +252,21 @@ class MediaLibrarySessionCallback(
             }
             else -> Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
         }
+    }
+
+    /** Car player buttons: favorite heart (state-aware) and stop. */
+    fun customLayout(favoriteFilled: Boolean): List<CommandButton> {
+        val favorite = CommandButton.Builder(
+            if (favoriteFilled) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED
+        )
+            .setDisplayName(context.getString(R.string.aa_favorite))
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_FAVORITE, Bundle.EMPTY))
+            .build()
+        val stop = CommandButton.Builder(CommandButton.ICON_STOP)
+            .setDisplayName(context.getString(R.string.aa_stop))
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
+            .build()
+        return listOf(favorite, stop)
     }
 
     /** Release the background executor when the service is destroyed. */
