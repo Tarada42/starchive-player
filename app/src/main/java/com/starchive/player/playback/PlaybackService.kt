@@ -2,6 +2,7 @@ package com.starchive.player.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Bundle
 import androidx.media3.cast.CastPlayer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -11,13 +12,16 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
 import com.starchive.player.MainActivity
+import com.starchive.player.R
 import com.starchive.player.StArchiveApp
 import com.starchive.player.data.Repository
 import kotlinx.coroutines.CoroutineScope
@@ -98,8 +102,16 @@ class PlaybackService : MediaLibraryService() {
 
         librarySessionCallback = MediaLibrarySessionCallback(repository, serviceScope, sleepTimer)
 
+        // A stop button for the car player: the host renders no stop control of its own,
+        // and stop must return the user to the browse screen rather than just pausing.
+        val aaStopButton = CommandButton.Builder(CommandButton.ICON_STOP)
+            .setDisplayName(getString(R.string.aa_stop))
+            .setSessionCommand(SessionCommand(COMMAND_AA_STOP, Bundle.EMPTY))
+            .build()
+
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, librarySessionCallback!!)
             .setSessionActivity(openAppIntent!!)
+            .setCustomLayout(listOf(aaStopButton))
             .build()
 
         // Google Cast (PHONE ONLY). CastContext init can fail on devices without Play
@@ -218,6 +230,7 @@ class PlaybackService : MediaLibraryService() {
         const val COMMAND_SET_SLEEP_TIMER = "com.starchive.player.playback.SET_SLEEP_TIMER"
         const val COMMAND_CANCEL_SLEEP_TIMER = "com.starchive.player.playback.CANCEL_SLEEP_TIMER"
         const val COMMAND_GET_SLEEP_TIMER_REMAINING = "com.starchive.player.playback.GET_SLEEP_TIMER_REMAINING"
+        const val COMMAND_AA_STOP = "com.starchive.player.playback.AA_STOP"
         const val EXTRA_MINUTES = "com.starchive.player.playback.EXTRA_MINUTES"
         const val EXTRA_REMAINING_MS = "com.starchive.player.playback.EXTRA_REMAINING_MS"
     }

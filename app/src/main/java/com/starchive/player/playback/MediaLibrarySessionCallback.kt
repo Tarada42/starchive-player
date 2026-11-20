@@ -157,6 +157,7 @@ class MediaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.COMMAND_SET_SLEEP_TIMER, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_CANCEL_SLEEP_TIMER, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_GET_SLEEP_TIMER_REMAINING, Bundle.EMPTY))
+            .add(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
             .build()
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
             .add(Player.COMMAND_STOP)
@@ -201,6 +202,14 @@ class MediaLibrarySessionCallback(
                 } else {
                     sleepTimer.cancel()
                 }
+                Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
+            }
+            PlaybackService.COMMAND_AA_STOP -> {
+                // Full stop: tear down playback and clear the resume state so the car
+                // returns to the browse screen instead of offering a paused stream.
+                session.player.stop()
+                session.player.clearMediaItems()
+                serviceScope.launch { repository.clearLastPlayback() }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
             PlaybackService.COMMAND_CANCEL_SLEEP_TIMER -> {
