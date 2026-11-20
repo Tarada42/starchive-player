@@ -12,6 +12,22 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 > Full overview: **[ABOUT.md](ABOUT.md)** · Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
+## What's new in 1.5.6
+
+- **Android Auto, rebuilt** — the car now uses Android Auto's own media player instead of a list of menu rows: DJ artwork, a seekable progress bar, **±30 s** skip, previous/next, and a combined play/pause. Live streams show artwork and transport controls only — no scrubbing a live stream.
+- **Stop in the car** — a Stop button that ends playback, including on live streams, and takes you back to the list.
+- **Favorite DJs from the car** — the heart in the car player favourites the **DJ** (never a single set); they appear in the car's Favorites folder and in the phone's Favorite Artists.
+- **Newest first** — artists in the car are ordered by most recently updated, and each DJ's sets newest first.
+- **Smaller download** — release builds are now optimised and obfuscated with R8.
+
+---
+
+## What's new in 1.5.5
+
+- Release builds now run R8 (code optimisation, resource shrinking, obfuscation) as required by Google Play; `mapping.txt` is archived per release for crash deobfuscation.
+
+---
+
 ## What's new in 1.5.4
 
 - **App-only volume** — a volume slider on the player that only affects STArchive (never the system volume); it's remembered between sessions.
@@ -119,9 +135,9 @@ The APK is auto-named `STArchivePlayer-<version>-<buildType>.apk` (e.g. `STArchi
 1. Build and install the app on a phone (see above).
 2. Install the **Android Auto** app from the Play Store, or use the **Desktop Head Unit (DHU)** from the Android SDK's `extras/google/auto` package to test without a car. Note: DHU has no real audio sink — silence there is normal.
 3. Enable developer settings in Android Auto (tap the version number ~10×) and turn on **Unknown sources** so a non-Published build is allowed to appear.
-4. Connect the phone (USB, or the DHU via `adb forward`) and open Android Auto — the STArchive icon appears under media apps with **Artists / Live / Favourites** tabs.
+4. Connect the phone (USB, or the DHU via `adb forward`) and open Android Auto — STArchive appears in the **media** app list, with **Live now**, **Artists** (newest first) and **Favorites** folders. Playback uses Android Auto's native media player.
 
-The AA module is clean-room and phone-parity-driven: it shares only the `Repository` data layer with the phone app and never uses the phone UI or casting.
+The car experience is built on a Media3 `MediaLibraryService` + `MediaSession`: Android Auto renders the browsing lists and the player itself from the session's metadata and capabilities, so the car UI stays consistent with the platform. The phone UI, casting and downloads are untouched by it.
 
 ---
 
