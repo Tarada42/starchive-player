@@ -19,7 +19,7 @@ The app lets you **browse every DJ, stream their sets, follow your favourites, t
 - **Single Artist mode** — pin a DJ and the whole app behaves as if built for just that artist, until you exit.
 - **Offline downloads** — download sets (multi-select supported) to internal storage and play them back with zero data; a dedicated **Offline** tab lists everything saved.
 - **Search** — search across artists and track titles, with persistent recent searches.
-- **Android Auto** — a full media-browser tree (Artists / Favourites / Search history) with garage-friendly transports, surfaced through Media3's `MediaLibraryService`.
+- **Android Auto** — a host-rendered media player driven by a Media3 `MediaLibraryService`: artwork, scrub bar, ±30 s, prev/next, a Stop button and an artist-only favourite heart. Browse **Live now**, **Artists** (newest first) and **Favorites**; a DJ who is streaming shows their live stream at the top of their folder.
 - **System controls** — playing continues in the background with notification + lock-screen controls that support the full transport (including the notification's own × to stop).
 
 ## Screenshots
