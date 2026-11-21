@@ -98,7 +98,6 @@ fun FavoritesScreen(
                             tint = MaterialTheme.colorScheme.onBackground,
                         )
                     }
-                    OverflowMenuButton()
                 },
             )
         },

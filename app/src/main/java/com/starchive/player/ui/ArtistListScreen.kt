@@ -137,7 +137,6 @@ fun ArtistListScreen(
                             tint = MaterialTheme.colorScheme.onBackground,
                         )
                     }
-                    OverflowMenuButton()
                 },
             )
         },

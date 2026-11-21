@@ -92,7 +92,6 @@ fun LiveNowScreen(
                     OutlinedButton(onClick = onRefresh) {
                         Text(if (isRefreshing) "…" else "Refresh")
                     }
-                    OverflowMenuButton()
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,

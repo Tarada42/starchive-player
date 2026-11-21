@@ -202,6 +202,22 @@ class PlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
         mediaLibrarySession
 
+    /**
+     * Swiping the app out of Recents is an explicit "close it" gesture, but a foreground
+     * media session outlives the task by design: playback and the ongoing notification
+     * kept running, so the card felt impossible to dismiss. Stop playback and the service.
+     *
+     * pauseAllPlayersAndStopSelf() is the documented way to end the foreground state; a
+     * bare player.pause() + stopSelf() no longer works in media3 1.4.x. super is not
+     * called on purpose — it is documented as safe to skip when overriding this behaviour.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        sleepTimer.cancel()
+        // Never leave audio playing on a cast device after the app is closed.
+        runCatching { castContext?.sessionManager?.endCurrentSession(true) }
+        pauseAllPlayersAndStopSelf()
+    }
+
     override fun onDestroy() {
         // The service is being stopped (e.g. user dismissed the notification's close
         // action): pause and clear the persisted resume state so the app closes out
