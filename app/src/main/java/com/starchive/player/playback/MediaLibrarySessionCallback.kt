@@ -230,7 +230,17 @@ class MediaLibrarySessionCallback(
             session.isAutoCompanionController(controller) ||
             session.isAutomotiveController(controller)
         ) {
-            runCatching { session.setCustomLayout(customLayout()) }
+            runCatching {
+                val buttons = customLayout()
+                android.util.Log.i(
+                    "STArchiveAA",
+                    "onPostConnect pkg=${controller.packageName} " +
+                        "notification=${session.isMediaNotificationController(controller)} " +
+                        "car=${session.isAutoCompanionController(controller) || session.isAutomotiveController(controller)} " +
+                        "buttons=${buttons.map { it.displayName }}",
+                )
+                session.setCustomLayout(buttons)
+            }
         }
     }
 
@@ -375,13 +385,17 @@ class MediaLibrarySessionCallback(
      * (non-seekable) items, so this is the only way to guarantee it for both cases.
      */
     fun customLayout(): List<CommandButton> {
+        // Bound to standard player commands, not custom session commands: the car host
+        // recognises COMMAND_SEEK_BACK/FORWARD and can place them in its own skip slots,
+        // and they are never filtered out by the session-command check that drops custom
+        // buttons on legacy controllers.
         val seekBack = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
             .setDisplayName(context.getString(R.string.aa_seek_back_30))
-            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
+            .setPlayerCommand(Player.COMMAND_SEEK_BACK)
             .build()
         val seekForward = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
             .setDisplayName(context.getString(R.string.aa_seek_forward_30))
-            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
+            .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
             .build()
         val stop = CommandButton.Builder(CommandButton.ICON_STOP)
             .setDisplayName(context.getString(R.string.aa_stop))
