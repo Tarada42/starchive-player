@@ -119,23 +119,10 @@ class PlaybackService : MediaLibraryService() {
                 if (playbackState == Player.STATE_IDLE && exoPlayer.mediaItemCount > 0) {
                     serviceScope.launch { runCatching { repository.clearLastPlayback() } }
                 }
-                // TEMPORARY DIAGNOSTIC: Android Auto decides whether to show -/+30 s from
-                // the seek actions the session advertises. Log what the player offers so
-                // we can tell "commands missing" from "host chooses not to show them".
-                if (playbackState == Player.STATE_READY) {
-                    android.util.Log.i(
-                        "STArchiveAA",
-                        "seekBack=${exoPlayer.isCommandAvailable(Player.COMMAND_SEEK_BACK)} " +
-                            "seekFwd=${exoPlayer.isCommandAvailable(Player.COMMAND_SEEK_FORWARD)} " +
-                            "incBack=${exoPlayer.seekBackIncrement} incFwd=${exoPlayer.seekForwardIncrement} " +
-                            "duration=${exoPlayer.duration}",
-                    )
-                }
             }
 
             // Save the resume point when playback is paused (e.g. arriving at a
             // destination and turning the car off) rather than waiting for the ticker.
-
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
                     // Playback resumed: a later stop should be able to clear again.
@@ -321,6 +308,11 @@ class PlaybackService : MediaLibraryService() {
         const val COMMAND_CANCEL_SLEEP_TIMER = "com.starchive.player.playback.CANCEL_SLEEP_TIMER"
         const val COMMAND_GET_SLEEP_TIMER_REMAINING = "com.starchive.player.playback.GET_SLEEP_TIMER_REMAINING"
         const val COMMAND_AA_STOP = "com.starchive.player.playback.AA_STOP"
+
+        /** Car-only seek buttons: Android Auto never draws its native -/+30 s pair for
+         * music items, so the app supplies them as custom layout buttons instead. */
+        const val COMMAND_AA_SEEK_BACK = "com.starchive.player.playback.AA_SEEK_BACK"
+        const val COMMAND_AA_SEEK_FORWARD = "com.starchive.player.playback.AA_SEEK_FORWARD"
         const val COMMAND_AA_FAVORITE = "com.starchive.player.playback.AA_FAVORITE"
         const val EXTRA_MINUTES = "com.starchive.player.playback.EXTRA_MINUTES"
         const val EXTRA_REMAINING_MS = "com.starchive.player.playback.EXTRA_REMAINING_MS"

@@ -3,6 +3,7 @@ package com.starchive.player.playback
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -54,6 +55,9 @@ class MediaLibrarySessionCallback(
 
     /** Auto-resume is attempted once per service lifetime, not per reconnecting controller. */
     private val autoResumeAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** Step for the car's -/+ buttons; matches the session's own seek increments. */
+    private val SEEK_STEP_MS = 30_000L
 
     /** True while a Stop is being handled, so the pause-save cannot resurrect a resume point. */
     @Volatile
@@ -190,6 +194,8 @@ class MediaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.COMMAND_CANCEL_SLEEP_TIMER, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_GET_SLEEP_TIMER_REMAINING, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
+            .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
+            .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_AA_FAVORITE, Bundle.EMPTY))
             .build()
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
@@ -259,6 +265,27 @@ class MediaLibrarySessionCallback(
                 SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
                 }
             }
+            PlaybackService.COMMAND_AA_SEEK_BACK,
+            PlaybackService.COMMAND_AA_SEEK_FORWARD,
+            -> {
+                val delta = if (customCommand.customAction == PlaybackService.COMMAND_AA_SEEK_BACK) {
+                    -SEEK_STEP_MS
+                } else {
+                    SEEK_STEP_MS
+                }
+                val player = session.player
+                val isLive = player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+                if (!isLive && player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)) {
+                    // Clamp inside the item so a -30 s near the start lands on 0 rather
+                    // than seeking past the end of the previous track.
+                    val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
+                    val target = (player.currentPosition + delta).coerceIn(0L, duration)
+                    player.seekTo(target)
+                    SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
+                } else {
+                    SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED, Bundle.EMPTY)
+                }
+            }
             PlaybackService.COMMAND_AA_STOP -> {
                 stopInProgress = true
                 val wasLive = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
@@ -326,11 +353,19 @@ class MediaLibrarySessionCallback(
      * (non-seekable) items, so this is the only way to guarantee it for both cases.
      */
     fun customLayout(): List<CommandButton> {
+        val seekBack = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
+            .setDisplayName(context.getString(R.string.aa_seek_back_30))
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
+            .build()
+        val seekForward = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
+            .setDisplayName(context.getString(R.string.aa_seek_forward_30))
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
+            .build()
         val stop = CommandButton.Builder(CommandButton.ICON_STOP)
             .setDisplayName(context.getString(R.string.aa_stop))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
             .build()
-        return listOf(stop)
+        return listOf(seekBack, seekForward, stop)
     }
 
     /** Release the background executor when the service is destroyed. */
