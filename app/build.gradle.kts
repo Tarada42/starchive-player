@@ -98,14 +98,15 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
 
     // Media3 (ExoPlayer + MediaLibrarySession for background playback & Android Auto)
-    implementation("androidx.media3:media3-exoplayer:1.4.1")
-    implementation("androidx.media3:media3-session:1.4.1")
-    implementation("androidx.media3:media3-ui:1.4.1")
-    implementation("androidx.media3:media3-common:1.4.1")
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-session:1.11.1")
+    implementation("androidx.media3:media3-ui:1.11.1")
+    implementation("androidx.media3:media3-common:1.11.1")
 
     // Google Cast (PHONE ONLY — nothing here is exposed to Android Auto)
-    implementation("androidx.media3:media3-cast:1.4.1")
-    implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
+    // media3-cast 1.11.1 POM declares play-services-cast-framework 22.3.1.
+    implementation("androidx.media3:media3-cast:1.11.1")
+    implementation("com.google.android.gms:play-services-cast-framework:22.3.1")
 
     // No coroutines-guava: the MediaLibrarySession callbacks bridge to ListenableFuture
     // with a small listening executor, so no extra dependency is needed.
