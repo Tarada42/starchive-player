@@ -3,7 +3,6 @@ package com.starchive.player.playback
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -55,9 +54,6 @@ class MediaLibrarySessionCallback(
 
     /** Auto-resume is attempted once per service lifetime, not per reconnecting controller. */
     private val autoResumeAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
-
-    /** Step for the car's -/+ buttons; matches the session's own seek increments. */
-    private val SEEK_STEP_MS = 30_000L
 
     /** True while a Stop is being handled, so the pause-save cannot resurrect a resume point. */
     @Volatile
@@ -194,9 +190,6 @@ class MediaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.COMMAND_CANCEL_SLEEP_TIMER, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_GET_SLEEP_TIMER_REMAINING, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
-            .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
-            .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
-            .add(SessionCommand(PlaybackService.COMMAND_AA_FAVORITE, Bundle.EMPTY))
             .build()
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
             .add(Player.COMMAND_STOP)
@@ -206,58 +199,34 @@ class MediaLibrarySessionCallback(
             .add(Player.COMMAND_SEEK_TO_PREVIOUS)
             .add(Player.COMMAND_SEEK_TO_NEXT)
             .build()
-        return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+        return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
             .setAvailableSessionCommands(sessionCommands)
             .setAvailablePlayerCommands(playerCommands)
+            .setMediaButtonPreferences(mediaButtonPreferences(live = false))
             .build()
     }
 
     /**
-     * The legacy (Android Auto) playback state is built from the session's custom layout
-     * filtered against the available session commands. At builder time those commands are
-     * still the defaults, so only some custom buttons survive. Re-publishing the layout
-     * once a controller has actually connected - and its command set is known - makes the
-     * remaining buttons reach the legacy PlaybackStateCompat as custom actions.
-     *
-     * See media3 1.4.1 PlayerWrapper.createPlaybackStateCompat (custom actions are only
-     * added for buttons whose session command is in availableSessionCommands) and
-     * MediaSessionImpl.onConnectOnHandler, which refreshes those commands only for the
-     * media-notification controller.
+     * Re-publish the media button preferences once a controller has actually connected so
+     * the buttons match the currently-playing item (archive vs live). The initial connection
+     * result above uses a default archive layout.
      */
     override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
-        if (
-            session.isMediaNotificationController(controller) ||
-            session.isAutoCompanionController(controller) ||
-            session.isAutomotiveController(controller)
-        ) {
-            runCatching {
-                val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
-                val buttons = customLayout(live)
-                android.util.Log.i(
-                    "STArchiveAA",
-                    "onPostConnect pkg=${controller.packageName} " +
-                        "notification=${session.isMediaNotificationController(controller)} " +
-                        "car=${session.isAutoCompanionController(controller) || session.isAutomotiveController(controller)} " +
-                        "buttons=${buttons.map { it.displayName }}",
-                )
-                session.setCustomLayout(buttons)
-            }
+        // Only the media-notification controller's connection refreshes the legacy
+        // PlaybackStateCompat that Android Auto reads (media3 1.11.1
+        // MediaSessionImpl.setMediaButtonPreferences(ControllerInfo):578-590).
+        if (!session.isMediaNotificationController(controller)) return
+        runCatching {
+            val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+            val buttons = mediaButtonPreferences(live)
+            android.util.Log.i(
+                "STArchiveAA",
+                "onPostConnect pkg=${controller.packageName} buttons=${buttons.map { it.displayName }}",
+            )
+            // The GLOBAL overload is the one that reaches the platform session; the
+            // per-controller overload only updates the media3 IPC view.
+            session.setMediaButtonPreferences(buttons)
         }
-    }
-
-    override fun onPlayerCommandRequest(
-        session: MediaSession,
-        controller: MediaSession.ControllerInfo,
-        @Player.Command playerCommand: Int,
-    ): Int {
-        if (playerCommand == Player.COMMAND_STOP) {
-            // Mirror the service-side stop behavior: clear the persisted resume state.
-            serviceScope.launch { repository.clearLastPlayback() }
-        }
-        // Do not reject commands here. Returning an error mid-batch makes the car host
-        // abort the whole selection ("Could not load your selection"). Live streams hide
-        // seek/skip on their own because the item is non-seekable and the queue has one item.
-        return SessionResult.RESULT_SUCCESS
     }
 
     override fun onCustomCommand(
@@ -275,51 +244,6 @@ class MediaLibrarySessionCallback(
                     sleepTimer.cancel()
                 }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
-            }
-            PlaybackService.COMMAND_AA_FAVORITE -> {
-                // Player getters must be read on the main looper, so capture the id here
-                // (this callback runs on main) before hopping to the IO executor.
-                val currentMediaId = session.player.currentMediaItem?.mediaId
-                future {
-                // Artist-only favouriting in the car: a heart means "I like this DJ",
-                // whether the playing item is a live stream or one of their archive sets.
-                val mediaId = currentMediaId
-                val artistId = when {
-                    mediaId == null -> null
-                    mediaId.startsWith(LIVE_PREFIX) -> mediaId.removePrefix(LIVE_PREFIX)
-                    else -> repository.trackById(mediaId)?.artistId
-                }
-                if (artistId != null) {
-                    val artist = repository.artists.value.find { it.id.equals(artistId, ignoreCase = true) }
-                        ?: repository.liveArtists.value.find { it.id.equals(artistId, ignoreCase = true) }
-                        ?: Artist(artistId, artistId.replace('_', ' '), thumbnailUrl = null, twitchAvatarUrl = null)
-                    repository.toggleFavoriteArtist(artist)
-                }
-                SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
-                }
-            }
-            PlaybackService.COMMAND_AA_SEEK_BACK,
-            PlaybackService.COMMAND_AA_SEEK_FORWARD,
-            -> {
-                val delta = if (customCommand.customAction == PlaybackService.COMMAND_AA_SEEK_BACK) {
-                    -SEEK_STEP_MS
-                } else {
-                    SEEK_STEP_MS
-                }
-                val player = session.player
-                val isLive = player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
-                if (!isLive && player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)) {
-                    // Clamp inside the item so a -30 s near the start lands on 0 rather
-                    // than seeking past the end of the previous track.
-                    val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
-                    val target = (player.currentPosition + delta).coerceIn(0L, duration)
-                    player.seekTo(target)
-                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
-                } else {
-                    Futures.immediateFuture(
-                        SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED, Bundle.EMPTY)
-                    )
-                }
             }
             PlaybackService.COMMAND_AA_STOP -> {
                 stopInProgress = true
@@ -381,38 +305,34 @@ class MediaLibrarySessionCallback(
     }
 
     /**
-     * Car player buttons. Only Stop is offered: Android Auto's legacy controller ignores
-     * runtime layout updates, so a heart could never show the real favourite state - it
-     * was permanently empty and only added noise. Favouriting stays available from the
-     * phone. Stop is a custom button because the host drops the transport stop for live
-     * (non-seekable) items, so this is the only way to guarantee it for both cases.
+     * Car player buttons, expressed as media button preferences with CommandButton slots so
+     * Android Auto (and the media notification) can place up to four buttons.
+     *
+     * Archive sets get the -/+30 s pair plus Stop; live streams get Stop (seeking a live
+     * stream is meaningless, and the host's transport has no stop of its own).
      */
-    /**
-     * The car has room for two custom buttons, so the layout depends on what is playing:
-     * archive sets get the -/+30 s pair, live streams get Stop (seeking a live stream is
-     * meaningless, and the host's transport has no stop of its own).
-     */
-    fun customLayout(live: Boolean): List<CommandButton> {
+    fun mediaButtonPreferences(live: Boolean): List<CommandButton> {
+        val stopButton = CommandButton.Builder(CommandButton.ICON_STOP)
+            .setDisplayName(context.getString(R.string.aa_stop))
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
         if (live) {
             return listOf(
-                CommandButton.Builder(CommandButton.ICON_STOP)
-                    .setDisplayName(context.getString(R.string.aa_stop))
-                    .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
+                stopButton
+                    .setSlots(CommandButton.SLOT_BACK)
                     .build(),
             )
         }
-        // Must be custom SESSION commands: media3 turns a button into a legacy
-        // PlaybackStateCompat custom action only when its command is a custom command
-        // (PlayerWrapper.createPlaybackStateCompat:1088-1108). Player-command buttons become
-        // ACTION_REWIND/FAST_FORWARD, which Android Auto ignores for music.
         return listOf(
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
                 .setDisplayName(context.getString(R.string.aa_seek_back_30))
-                .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
+                .setPlayerCommand(Player.COMMAND_SEEK_BACK)
                 .build(),
             CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
                 .setDisplayName(context.getString(R.string.aa_seek_forward_30))
-                .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
+                .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+                .build(),
+            stopButton
+                .setSlots(CommandButton.SLOT_OVERFLOW)
                 .build(),
         )
     }

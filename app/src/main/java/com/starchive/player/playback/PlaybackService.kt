@@ -152,7 +152,7 @@ class PlaybackService : MediaLibraryService() {
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, librarySessionCallback!!)
             .setSessionActivity(openAppIntent!!)
-            .setCustomLayout(librarySessionCallback!!.customLayout(live = false))
+            .setMediaButtonPreferences(librarySessionCallback!!.mediaButtonPreferences(live = false))
             .build()
 
 
@@ -242,12 +242,12 @@ class PlaybackService : MediaLibraryService() {
     }
 
 
-    /** Keep the car's two custom buttons in step with what is actually playing. */
+    /** Keep the car's media button preferences in step with what is actually playing. */
     private fun publishCarLayout() {
         val session = mediaLibrarySession ?: return
         val callback = librarySessionCallback ?: return
         val live = player?.currentMediaItem?.mediaId?.startsWith(LIVE_ID_PREFIX) == true
-        runCatching { session.setCustomLayout(callback.customLayout(live)) }
+        runCatching { session.setMediaButtonPreferences(callback.mediaButtonPreferences(live)) }
     }
 
     /**
@@ -323,11 +323,6 @@ class PlaybackService : MediaLibraryService() {
         const val COMMAND_GET_SLEEP_TIMER_REMAINING = "com.starchive.player.playback.GET_SLEEP_TIMER_REMAINING"
         const val COMMAND_AA_STOP = "com.starchive.player.playback.AA_STOP"
 
-        /** Car-only seek buttons: Android Auto never draws its native -/+30 s pair for
-         * music items, so the app supplies them as custom layout buttons instead. */
-        const val COMMAND_AA_SEEK_BACK = "com.starchive.player.playback.AA_SEEK_BACK"
-        const val COMMAND_AA_SEEK_FORWARD = "com.starchive.player.playback.AA_SEEK_FORWARD"
-        const val COMMAND_AA_FAVORITE = "com.starchive.player.playback.AA_FAVORITE"
         const val EXTRA_MINUTES = "com.starchive.player.playback.EXTRA_MINUTES"
         const val EXTRA_REMAINING_MS = "com.starchive.player.playback.EXTRA_REMAINING_MS"
 
