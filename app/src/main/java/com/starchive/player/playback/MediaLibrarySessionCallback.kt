@@ -196,8 +196,9 @@ class MediaLibrarySessionCallback(
             .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
             .add(Player.COMMAND_SEEK_BACK)
             .add(Player.COMMAND_SEEK_FORWARD)
-            .add(Player.COMMAND_SEEK_TO_PREVIOUS)
-            .add(Player.COMMAND_SEEK_TO_NEXT)
+            // Track skip is deliberately NOT advertised: a live stream has one item, and
+            // the car drew a next-track button that did nothing. Archive sets keep the
+            // 30 s seekers instead, which is what "next" means for a long set anyway.
             .build()
         return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
             .setAvailableSessionCommands(sessionCommands)
