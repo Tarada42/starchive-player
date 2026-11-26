@@ -128,12 +128,10 @@ class MediaLibrarySessionCallback(
 
         val mediaId = item.mediaId
         if (mediaId.startsWith(LIVE_PREFIX)) {
-            // Live: single-item queue.
-            return@future MediaSession.MediaItemsWithStartPosition(
-                resolved,
-                startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0)),
-                startPositionMs,
-            )
+            // Live: exactly one item in the queue. Returning the whole resolved list left
+            // every other station queued behind it, which is what gave the car a
+            // next-track button on a live stream.
+            return@future MediaSession.MediaItemsWithStartPosition(listOf(item), 0, startPositionMs)
         }
 
         // Only expand archive selections for Android Auto / Automotive OS controllers.
