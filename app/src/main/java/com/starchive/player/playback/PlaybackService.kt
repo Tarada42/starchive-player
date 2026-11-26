@@ -123,6 +123,12 @@ class PlaybackService : MediaLibraryService() {
 
             // Save the resume point when playback is paused (e.g. arriving at a
             // destination and turning the car off) rather than waiting for the ticker.
+            // Archive and live items need different car buttons, so republish the layout
+            // when the current item changes.
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                publishCarLayout()
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
                     // Playback resumed: a later stop should be able to clear again.
@@ -146,7 +152,7 @@ class PlaybackService : MediaLibraryService() {
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, librarySessionCallback!!)
             .setSessionActivity(openAppIntent!!)
-            .setCustomLayout(librarySessionCallback!!.customLayout())
+            .setCustomLayout(librarySessionCallback!!.customLayout(live = false))
             .build()
 
 
@@ -235,6 +241,14 @@ class PlaybackService : MediaLibraryService() {
         serviceScope.launch { repository.clearLastPlayback() }
     }
 
+
+    /** Keep the car's two custom buttons in step with what is actually playing. */
+    private fun publishCarLayout() {
+        val session = mediaLibrarySession ?: return
+        val callback = librarySessionCallback ?: return
+        val live = player?.currentMediaItem?.mediaId?.startsWith(LIVE_ID_PREFIX) == true
+        runCatching { session.setCustomLayout(callback.customLayout(live)) }
+    }
 
     /**
      * Persist the current archive track + position. Live streams are skipped: their

@@ -231,7 +231,8 @@ class MediaLibrarySessionCallback(
             session.isAutomotiveController(controller)
         ) {
             runCatching {
-                val buttons = customLayout()
+                val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+                val buttons = customLayout(live)
                 android.util.Log.i(
                     "STArchiveAA",
                     "onPostConnect pkg=${controller.packageName} " +
@@ -386,31 +387,34 @@ class MediaLibrarySessionCallback(
      * phone. Stop is a custom button because the host drops the transport stop for live
      * (non-seekable) items, so this is the only way to guarantee it for both cases.
      */
-    fun customLayout(): List<CommandButton> {
-        // Must be custom SESSION commands. media3 turns the button list into legacy
-        // PlaybackStateCompat custom actions only for buttons whose session command is a
-        // custom command (PlayerWrapper.createPlaybackStateCompat:1088-1108). Buttons bound
-        // to a player command become ACTION_REWIND/FAST_FORWARD instead, which the car host
-        // ignores for music - that is why they never appeared.
-        val seekBack = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
-            .setDisplayName(context.getString(R.string.aa_seek_back_30))
-            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
-            .build()
-        val seekForward = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
-            .setDisplayName(context.getString(R.string.aa_seek_forward_30))
-            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
-            .build()
-        val stop = CommandButton.Builder(CommandButton.ICON_STOP)
-            .setDisplayName(context.getString(R.string.aa_stop))
-            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
-            .build()
-        // The proper 30-second glyphs: the earlier failures were not about icons, the
-        // buttons never reached the legacy controller because of command filtering.
-        // DIAGNOSTIC BUILD: Stop is temporarily left out so the session publishes only the
-        // two seek buttons. If they appear as custom actions now, the problem is how many
-        // buttons survive; if they still do not, the seek commands themselves are rejected.
-        android.util.Log.i("STArchiveAA", "layout built: seeks only (stop=$stop)")
-        return listOf(seekBack, seekForward)
+    /**
+     * The car has room for two custom buttons, so the layout depends on what is playing:
+     * archive sets get the -/+30 s pair, live streams get Stop (seeking a live stream is
+     * meaningless, and the host's transport has no stop of its own).
+     */
+    fun customLayout(live: Boolean): List<CommandButton> {
+        if (live) {
+            return listOf(
+                CommandButton.Builder(CommandButton.ICON_STOP)
+                    .setDisplayName(context.getString(R.string.aa_stop))
+                    .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
+                    .build(),
+            )
+        }
+        // Must be custom SESSION commands: media3 turns a button into a legacy
+        // PlaybackStateCompat custom action only when its command is a custom command
+        // (PlayerWrapper.createPlaybackStateCompat:1088-1108). Player-command buttons become
+        // ACTION_REWIND/FAST_FORWARD, which Android Auto ignores for music.
+        return listOf(
+            CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
+                .setDisplayName(context.getString(R.string.aa_seek_back_30))
+                .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
+                .build(),
+            CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
+                .setDisplayName(context.getString(R.string.aa_seek_forward_30))
+                .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
+                .build(),
+        )
     }
 
     /** Release the background executor when the service is destroyed. */
