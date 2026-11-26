@@ -212,23 +212,20 @@ class MediaLibrarySessionCallback(
      * result above uses a default archive layout.
      */
     override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
-        if (
-            session.isMediaNotificationController(controller) ||
-            session.isAutoCompanionController(controller) ||
-            session.isAutomotiveController(controller)
-        ) {
-            runCatching {
-                val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
-                val buttons = mediaButtonPreferences(live)
-                android.util.Log.i(
-                    "STArchiveAA",
-                    "onPostConnect pkg=${controller.packageName} " +
-                        "notification=${session.isMediaNotificationController(controller)} " +
-                        "car=${session.isAutoCompanionController(controller) || session.isAutomotiveController(controller)} " +
-                        "buttons=${buttons.map { it.displayName }}",
-                )
-                session.setMediaButtonPreferences(controller, buttons)
-            }
+        // Only the media-notification controller's connection refreshes the legacy
+        // PlaybackStateCompat that Android Auto reads (media3 1.11.1
+        // MediaSessionImpl.setMediaButtonPreferences(ControllerInfo):578-590).
+        if (!session.isMediaNotificationController(controller)) return
+        runCatching {
+            val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+            val buttons = mediaButtonPreferences(live)
+            android.util.Log.i(
+                "STArchiveAA",
+                "onPostConnect pkg=${controller.packageName} buttons=${buttons.map { it.displayName }}",
+            )
+            // The GLOBAL overload is the one that reaches the platform session; the
+            // per-controller overload only updates the media3 IPC view.
+            session.setMediaButtonPreferences(buttons)
         }
     }
 
