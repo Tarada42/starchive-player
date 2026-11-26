@@ -22,12 +22,14 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.starchive.player.R
 import com.starchive.player.data.Artist
 import com.starchive.player.data.Repository
+import com.starchive.player.data.SettingsDataStore
 import com.starchive.player.data.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -45,7 +47,13 @@ class MediaLibrarySessionCallback(
     private val repository: Repository,
     private val serviceScope: CoroutineScope,
     private val sleepTimer: SleepTimer,
+    private val settings: SettingsDataStore,
+    /** True while the phone is casting; the car must never drive a cast device. */
+    private val isCastingProvider: () -> Boolean = { false },
 ) : MediaLibraryService.MediaLibrarySession.Callback {
+
+    /** Auto-resume is attempted once per service lifetime, not per reconnecting controller. */
+    private val autoResumeAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private val executor: ListeningExecutorService =
         MoreExecutors.listeningDecorator(
@@ -158,6 +166,16 @@ class MediaLibrarySessionCallback(
         session: MediaSession,
         controller: MediaSession.ControllerInfo,
     ): MediaSession.ConnectionResult {
+        // A car controller is connecting: remember that the car has been used (so the
+        // phone only asks the first-run question after a real drive) and resume the
+        // last set if the user opted in.
+        if (session.isAutoCompanionController(controller) || session.isAutomotiveController(controller)) {
+            serviceScope.launch {
+                runCatching { settings.markCarSeen() }
+                runCatching { autoResumeForCar(session) }
+            }
+        }
+
         val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
             .add(SessionCommand(PlaybackService.COMMAND_SET_SLEEP_TIMER, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_CANCEL_SLEEP_TIMER, Bundle.EMPTY))
@@ -210,10 +228,14 @@ class MediaLibrarySessionCallback(
                 }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
             }
-            PlaybackService.COMMAND_AA_FAVORITE -> future {
+            PlaybackService.COMMAND_AA_FAVORITE -> {
+                // Player getters must be read on the main looper, so capture the id here
+                // (this callback runs on main) before hopping to the IO executor.
+                val currentMediaId = session.player.currentMediaItem?.mediaId
+                future {
                 // Artist-only favouriting in the car: a heart means "I like this DJ",
                 // whether the playing item is a live stream or one of their archive sets.
-                val mediaId = session.player.currentMediaItem?.mediaId
+                val mediaId = currentMediaId
                 val artistId = when {
                     mediaId == null -> null
                     mediaId.startsWith(LIVE_PREFIX) -> mediaId.removePrefix(LIVE_PREFIX)
@@ -229,9 +251,13 @@ class MediaLibrarySessionCallback(
                     repository.toggleFavoriteArtist(artist)
                 }
                 // Reflect the new state in the button; a legacy (car) controller may ignore
-                // this update, in which case only the action takes effect.
-                runCatching { session.setCustomLayout(controller, customLayout(nowFavorite)) }
+                // this update, in which case only the action takes effect. Session state is
+                // touched on the main looper, never from this IO executor.
+                serviceScope.launch {
+                    runCatching { session.setCustomLayout(controller, customLayout(nowFavorite)) }
+                }
                 SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
+                }
             }
             PlaybackService.COMMAND_AA_STOP -> {
                 val wasLive = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
@@ -258,6 +284,37 @@ class MediaLibrarySessionCallback(
             }
             else -> Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
         }
+    }
+
+    /**
+     * Resume the last archive set in the car. Deliberately conservative: only when the
+     * user chose "on", only when nothing is queued, and never for a live stream — the
+     * car joining a live set unasked would be a surprise, not a convenience.
+     */
+    private suspend fun autoResumeForCar(session: MediaSession) {
+        if (!autoResumeAttempted.compareAndSet(false, true)) return
+        if (isCastingProvider()) return
+        if (settings.aaResumeChoice.first() != "on") return
+        val player = session.player
+        if (player.mediaItemCount > 0) return
+
+        val resume = withContext(Dispatchers.IO) {
+            val last = repository.lastPlaybackOnce() ?: return@withContext null
+            val (trackId, positionMs) = last
+            if (trackId.startsWith(LIVE_PREFIX)) return@withContext null
+            val track = repository.trackById(trackId) ?: return@withContext null
+            val artist = Artist(track.artistId, track.artistName, thumbnailUrl = null, twitchAvatarUrl = null)
+            val tracks = repository.tracks(artist)
+            if (tracks.isEmpty()) return@withContext null
+            Triple(tracks, trackId, positionMs)
+        } ?: return
+
+        val (tracks, trackId, positionMs) = resume
+        val items = tracks.map { it.toArchiveMediaItem() }
+        val index = tracks.indexOfFirst { it.id == trackId }.coerceAtLeast(0)
+        player.setMediaItems(items, index, positionMs)
+        player.prepare()
+        player.play()
     }
 
     /** Car player buttons: favorite heart (state-aware) and stop. */

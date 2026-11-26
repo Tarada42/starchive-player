@@ -12,6 +12,12 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 > Full overview: **[ABOUT.md](ABOUT.md)** · Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
+## What's new in 1.5.9
+
+- **Resume in the car** — playback started in Android Auto now remembers its position, and when the car connects the app can pick up your last set exactly where you left off. Off by default: the app asks once, and the switch lives in Settings.
+- **Car heart reflects favourites** — the heart in the car player now starts filled for a DJ you already follow.
+- **Newest first, always** — the artist list is date-ordered from the first screen after connecting, not just after the dates have been fetched.
+
 ## What's new in 1.5.8
 
 - **Swipe the app away and it actually closes.** Pulling the card out of the Recents screen now stops playback, removes the notification and ends any cast session, instead of leaving a silent background service running.

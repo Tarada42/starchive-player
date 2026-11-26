@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -60,6 +62,7 @@ import androidx.navigation.toRoute
 import com.starchive.player.MainActivity
 import com.starchive.player.R
 import com.starchive.player.data.Artist
+import com.starchive.player.data.SettingsDataStore
 import com.starchive.player.data.Track
 import com.starchive.player.playback.PlaybackManager
 import kotlinx.coroutines.CoroutineScope
@@ -182,6 +185,48 @@ fun AppNav(
     val recentResumePoints by viewModel.recentResumePoints.collectAsStateWithLifecycle()
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
     var liveQualityArtist by remember { mutableStateOf<Artist?>(null) }
+
+    // First-run question for car auto-resume: asked once, only after the app has
+    // actually seen an Android Auto connection, and only while unanswered.
+    val settingsStore = remember { SettingsDataStore(context.applicationContext) }
+    val aaCarSeen by settingsStore.aaCarSeen.collectAsState(initial = false)
+    val aaResumeChoice by settingsStore.aaResumeChoice.collectAsState(initial = "")
+    var aaPromptHandled by rememberSaveable { mutableStateOf(false) }
+
+    if (aaCarSeen && aaResumeChoice.isEmpty() && !aaPromptHandled) {
+        AlertDialog(
+            // Dismissing counts as "not now": asking again on the next launch would be
+            // nagging, and the switch in Settings is always there.
+            onDismissRequest = {
+                aaPromptHandled = true
+                uiScope.launch { settingsStore.setAaResumeChoice(false) }
+            },
+            title = { Text(stringResource(R.string.aa_resume_prompt_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.aa_resume_prompt_body))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.aa_resume_prompt_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    aaPromptHandled = true
+                    uiScope.launch { settingsStore.setAaResumeChoice(true) }
+                }) { Text(stringResource(R.string.aa_resume_turn_on)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    aaPromptHandled = true
+                    uiScope.launch { settingsStore.setAaResumeChoice(false) }
+                }) { Text(stringResource(R.string.aa_resume_not_now)) }
+            },
+        )
+    }
 
     if (liveQualityArtist != null) {
         val artist = liveQualityArtist!!

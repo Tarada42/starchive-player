@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,6 +52,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val liveNotifications by viewModel.liveNotifications.collectAsStateWithLifecycle()
+    val aaResumeEnabled by viewModel.aaResumeEnabled.collectAsStateWithLifecycle()
 
     // Triggers recompositions after the runtime permission dialog returns, so the
     // hint re-checks the real POST_NOTIFICATIONS grant state on the spot.
@@ -141,6 +143,39 @@ fun SettingsScreen(
                     text = stringResource(R.string.live_notifications_permission_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Android Auto: resume the last set when the car connects.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.aa_resume_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.aa_resume_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = aaResumeEnabled,
+                    onCheckedChange = { enabled -> viewModel.setAaResume(enabled) },
                 )
             }
 

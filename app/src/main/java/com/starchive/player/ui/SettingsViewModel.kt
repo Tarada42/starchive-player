@@ -8,6 +8,7 @@ import com.starchive.player.data.SettingsDataStore
 import com.starchive.player.notifications.LiveNotificationsScheduler
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -24,6 +25,11 @@ class SettingsViewModel(context: Context) : ViewModel() {
     val liveNotifications: StateFlow<Boolean> = settings.liveNotifications
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    /** Car auto-resume: false until the user answers the first-run question. */
+    val aaResumeEnabled: StateFlow<Boolean> = settings.aaResumeChoice
+        .map { it == "on" }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     /** Persist the toggle and (un)schedule the background worker accordingly. */
     fun setLiveNotifications(enabled: Boolean) {
         viewModelScope.launch {
@@ -34,6 +40,10 @@ class SettingsViewModel(context: Context) : ViewModel() {
                 LiveNotificationsScheduler.cancel(appContext)
             }
         }
+    }
+
+    fun setAaResume(enabled: Boolean) {
+        viewModelScope.launch { settings.setAaResumeChoice(enabled) }
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

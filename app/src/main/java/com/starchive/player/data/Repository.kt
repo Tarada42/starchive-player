@@ -6,6 +6,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -265,6 +266,16 @@ class Repository(
         playbackStateDataStore.saveLast(track.id, track.artistId, positionMs)
 
     suspend fun clearLastPlayback() = playbackStateDataStore.clearLast()
+
+    /**
+     * The persisted resume point (track id + position), read once. Used by the car to
+     * pick up where the phone left off; null when there is nothing to resume.
+     */
+    suspend fun lastPlaybackOnce(): Pair<String, Long>? {
+        val trackId = playbackStateDataStore.lastTrackId.first() ?: return null
+        val position = playbackStateDataStore.lastPositionMs.first()
+        return trackId to position
+    }
 
     /** Persist the track + play state the home-screen widget renders. */
     suspend fun saveNowPlayingTrack(track: Track?, isPlaying: Boolean) =
