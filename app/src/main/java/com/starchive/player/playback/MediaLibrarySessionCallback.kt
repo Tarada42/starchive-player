@@ -212,6 +212,28 @@ class MediaLibrarySessionCallback(
             .build()
     }
 
+    /**
+     * The legacy (Android Auto) playback state is built from the session's custom layout
+     * filtered against the available session commands. At builder time those commands are
+     * still the defaults, so only some custom buttons survive. Re-publishing the layout
+     * once a controller has actually connected - and its command set is known - makes the
+     * remaining buttons reach the legacy PlaybackStateCompat as custom actions.
+     *
+     * See media3 1.4.1 PlayerWrapper.createPlaybackStateCompat (custom actions are only
+     * added for buttons whose session command is in availableSessionCommands) and
+     * MediaSessionImpl.onConnectOnHandler, which refreshes those commands only for the
+     * media-notification controller.
+     */
+    override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
+        if (
+            session.isMediaNotificationController(controller) ||
+            session.isAutoCompanionController(controller) ||
+            session.isAutomotiveController(controller)
+        ) {
+            runCatching { session.setCustomLayout(customLayout()) }
+        }
+    }
+
     override fun onPlayerCommandRequest(
         session: MediaSession,
         controller: MediaSession.ControllerInfo,
@@ -353,11 +375,11 @@ class MediaLibrarySessionCallback(
      * (non-seekable) items, so this is the only way to guarantee it for both cases.
      */
     fun customLayout(): List<CommandButton> {
-        val seekBack = CommandButton.Builder(CommandButton.ICON_MINUS)
+        val seekBack = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
             .setDisplayName(context.getString(R.string.aa_seek_back_30))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
             .build()
-        val seekForward = CommandButton.Builder(CommandButton.ICON_PLUS)
+        val seekForward = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
             .setDisplayName(context.getString(R.string.aa_seek_forward_30))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
             .build()
@@ -365,9 +387,8 @@ class MediaLibrarySessionCallback(
             .setDisplayName(context.getString(R.string.aa_stop))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
             .build()
-        // Neither ICON_SKIP_BACK_30/FORWARD_30 nor ICON_REWIND/FAST_FORWARD survive on
-        // Android Auto for music items, while ICON_STOP does. Plain +/- glyphs are the
-        // remaining action icon family; the display name carries the 30 s meaning.
+        // The proper 30-second glyphs: the earlier failures were not about icons, the
+        // buttons never reached the legacy controller because of command filtering.
         return listOf(seekBack, seekForward, stop)
     }
 
