@@ -191,14 +191,19 @@ class MediaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
             .build()
+        // DEFAULT_PLAYER_COMMANDS is addAllCommands(), so track skip is available unless it
+        // is explicitly removed - and the car draws a next/previous button whenever it is.
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+            .removeAll(
+                Player.COMMAND_SEEK_TO_NEXT,
+                Player.COMMAND_SEEK_TO_PREVIOUS,
+                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            )
             .add(Player.COMMAND_STOP)
             .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
             // COMMAND_SEEK_BACK/FORWARD are intentionally not advertised: the car turns
             // them into seek buttons on every item, including live streams.
-            // Track skip is deliberately NOT advertised: a live stream has one item, and
-            // the car drew a next-track button that did nothing. Archive sets keep the
-            // 30 s seekers instead, which is what "next" means for a long set anyway.
             .build()
         return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
             .setAvailableSessionCommands(sessionCommands)
