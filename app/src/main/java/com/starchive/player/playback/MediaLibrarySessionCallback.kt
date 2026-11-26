@@ -353,11 +353,11 @@ class MediaLibrarySessionCallback(
      * (non-seekable) items, so this is the only way to guarantee it for both cases.
      */
     fun customLayout(): List<CommandButton> {
-        val seekBack = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
+        val seekBack = CommandButton.Builder(CommandButton.ICON_REWIND)
             .setDisplayName(context.getString(R.string.aa_seek_back_30))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
             .build()
-        val seekForward = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
+        val seekForward = CommandButton.Builder(CommandButton.ICON_FAST_FORWARD)
             .setDisplayName(context.getString(R.string.aa_seek_forward_30))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
             .build()
@@ -365,6 +365,9 @@ class MediaLibrarySessionCallback(
             .setDisplayName(context.getString(R.string.aa_stop))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
             .build()
+        // ICON_SKIP_BACK_30 / ICON_SKIP_FORWARD_30 are documented but the car host drops
+        // them for music (only the Stop button survived the row), so use the generic
+        // rewind / fast-forward glyphs and let the display name carry the 30 s meaning.
         return listOf(seekBack, seekForward, stop)
     }
 
