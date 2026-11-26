@@ -397,7 +397,16 @@ fun Track.toMediaItem(): MediaItem {
         .setMediaId(id)
         .setMimeType(mimeType ?: MimeTypes.AUDIO_MPEG)
         .setMediaMetadata(metadata)
+        .applyLiveConfigIfLive(id)
         .build()
+}
+
+/** Attaches an empty live configuration to live items so ExoPlayer reports them as live. */
+private fun MediaItem.Builder.applyLiveConfigIfLive(mediaId: String): MediaItem.Builder {
+    if (mediaId.startsWith("live-")) {
+        setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
+    }
+    return this
 }
 
 /**
@@ -419,6 +428,7 @@ fun Track.toMediaItemWithLocal(downloadManager: DownloadManager): MediaItem {
             .setMediaId(id)
             .setMimeType(MimeTypes.AUDIO_MPEG)
             .setMediaMetadata(metadata)
+            .applyLiveConfigIfLive(id)
             .build()
     }
     return toMediaItem()

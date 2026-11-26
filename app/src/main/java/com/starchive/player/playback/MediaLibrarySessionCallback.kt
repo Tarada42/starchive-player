@@ -191,10 +191,14 @@ class MediaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
             .build()
-        // DEFAULT_PLAYER_COMMANDS is addAllCommands(), so track skip is available unless it
-        // is explicitly removed - and the car draws a next/previous button whenever it is.
+        // DEFAULT_PLAYER_COMMANDS is addAllCommands(), so seek/skip commands are available
+        // unless explicitly removed. The car draws rewind/fast-forward/skip buttons whenever
+        // they are advertised, including on live streams. Archive sets use custom session
+        // commands for -30 s / +30 s instead.
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
             .removeAll(
+                Player.COMMAND_SEEK_BACK,
+                Player.COMMAND_SEEK_FORWARD,
                 Player.COMMAND_SEEK_TO_NEXT,
                 Player.COMMAND_SEEK_TO_PREVIOUS,
                 Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
@@ -202,20 +206,20 @@ class MediaLibrarySessionCallback(
             )
             .add(Player.COMMAND_STOP)
             .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
-            // COMMAND_SEEK_BACK/FORWARD are intentionally not advertised: the car turns
-            // them into seek buttons on every item, including live streams.
             .build()
+        val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
         return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
             .setAvailableSessionCommands(sessionCommands)
             .setAvailablePlayerCommands(playerCommands)
-            .setMediaButtonPreferences(mediaButtonPreferences(live = false))
+            .setMediaButtonPreferences(mediaButtonPreferences(live))
             .build()
     }
 
     /**
-     * Re-publish the media button preferences once a controller has actually connected so
-     * the buttons match the currently-playing item (archive vs live). The initial connection
-     * result above uses a default archive layout.
+     * Re-publish the media button preferences once the media-notification controller has
+     * actually connected so the buttons match the currently-playing item (archive vs live).
+     * The initial connection result already uses the current item, but this catches any
+     * race and forces an immediate rebuild of the legacy PlaybackStateCompat.
      */
     override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
         // Only the media-notification controller's connection refreshes the legacy
@@ -229,9 +233,11 @@ class MediaLibrarySessionCallback(
                 "STArchiveAA",
                 "onPostConnect pkg=${controller.packageName} buttons=${buttons.map { it.displayName }}",
             )
-            // The GLOBAL overload is the one that reaches the platform session; the
-            // per-controller overload only updates the media3 IPC view.
-            session.setMediaButtonPreferences(buttons)
+            // For the media-notification controller, the per-controller overload updates
+            // the platform session AND rebuilds PlaybackStateCompat immediately. The global
+            // overload only stores the preferences for future controllers and does not
+            // trigger an immediate legacy state rebuild.
+            session.setMediaButtonPreferences(controller, buttons)
         }
     }
 
@@ -529,6 +535,9 @@ class MediaLibrarySessionCallback(
             .setMediaId("$LIVE_PREFIX$id")
             .setMimeType(MimeTypes.AUDIO_MPEG)
             .setMediaMetadata(metadata)
+            // Mark the item as live so ExoPlayer's timeline reports isCurrentMediaItemLive()
+            // and MediaSessionLegacyStub clears ACTION_SEEK_TO from the PlaybackStateCompat.
+            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
             .build()
     }
 

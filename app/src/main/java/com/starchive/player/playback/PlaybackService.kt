@@ -247,7 +247,18 @@ class PlaybackService : MediaLibraryService() {
         val session = mediaLibrarySession ?: return
         val callback = librarySessionCallback ?: return
         val live = player?.currentMediaItem?.mediaId?.startsWith(LIVE_ID_PREFIX) == true
-        runCatching { session.setMediaButtonPreferences(callback.mediaButtonPreferences(live)) }
+        val buttons = callback.mediaButtonPreferences(live)
+        runCatching {
+            // Update the session's preferences for future controllers.
+            session.setMediaButtonPreferences(buttons)
+            // Force an immediate rebuild of the legacy PlaybackStateCompat for the
+            // currently-connected media-notification controller (Android Auto reads this).
+            // The global overload alone only stores the preferences and does not rebuild
+            // PlaybackStateCompat (MediaSessionImpl.setMediaButtonPreferences:596-605).
+            session.getMediaNotificationControllerInfo()?.let { notificationController ->
+                session.setMediaButtonPreferences(notificationController, buttons)
+            }
+        }
     }
 
     /**
