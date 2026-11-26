@@ -406,7 +406,11 @@ class MediaLibrarySessionCallback(
             .build()
         // The proper 30-second glyphs: the earlier failures were not about icons, the
         // buttons never reached the legacy controller because of command filtering.
-        return listOf(seekBack, seekForward, stop)
+        // DIAGNOSTIC BUILD: Stop is temporarily left out so the session publishes only the
+        // two seek buttons. If they appear as custom actions now, the problem is how many
+        // buttons survive; if they still do not, the seek commands themselves are rejected.
+        android.util.Log.i("STArchiveAA", "layout built: seeks only (stop=$stop)")
+        return listOf(seekBack, seekForward)
     }
 
     /** Release the background executor when the service is destroyed. */
