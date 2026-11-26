@@ -323,6 +323,10 @@ class PlaybackService : MediaLibraryService() {
         const val COMMAND_GET_SLEEP_TIMER_REMAINING = "com.starchive.player.playback.GET_SLEEP_TIMER_REMAINING"
         const val COMMAND_AA_STOP = "com.starchive.player.playback.AA_STOP"
 
+        /** Car -/+30 s buttons. Custom commands, so they are never drawn on live streams. */
+        const val COMMAND_AA_SEEK_BACK = "com.starchive.player.playback.AA_SEEK_BACK"
+        const val COMMAND_AA_SEEK_FORWARD = "com.starchive.player.playback.AA_SEEK_FORWARD"
+
         const val EXTRA_MINUTES = "com.starchive.player.playback.EXTRA_MINUTES"
         const val EXTRA_REMAINING_MS = "com.starchive.player.playback.EXTRA_REMAINING_MS"
 

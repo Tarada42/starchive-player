@@ -190,12 +190,14 @@ class MediaLibrarySessionCallback(
             .add(SessionCommand(PlaybackService.COMMAND_CANCEL_SLEEP_TIMER, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_GET_SLEEP_TIMER_REMAINING, Bundle.EMPTY))
             .add(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
+            .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
+            .add(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
             .build()
         val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
             .add(Player.COMMAND_STOP)
             .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
-            .add(Player.COMMAND_SEEK_BACK)
-            .add(Player.COMMAND_SEEK_FORWARD)
+            // COMMAND_SEEK_BACK/FORWARD are intentionally not advertised: the car turns
+            // them into seek buttons on every item, including live streams.
             // Track skip is deliberately NOT advertised: a live stream has one item, and
             // the car drew a next-track button that did nothing. Archive sets keep the
             // 30 s seekers instead, which is what "next" means for a long set anyway.
@@ -245,6 +247,22 @@ class MediaLibrarySessionCallback(
                     sleepTimer.cancel()
                 }
                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
+            }
+            PlaybackService.COMMAND_AA_SEEK_BACK,
+            PlaybackService.COMMAND_AA_SEEK_FORWARD,
+            -> {
+                val delta = if (customCommand.customAction == PlaybackService.COMMAND_AA_SEEK_BACK) -30_000L else 30_000L
+                val player = session.player
+                val live = player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+                if (live) {
+                    Futures.immediateFuture(
+                        SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED, Bundle.EMPTY)
+                    )
+                } else {
+                    val duration = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                    player.seekTo((player.currentPosition + delta).coerceIn(0L, duration))
+                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
+                }
             }
             PlaybackService.COMMAND_AA_STOP -> {
                 stopInProgress = true
@@ -323,14 +341,17 @@ class MediaLibrarySessionCallback(
                     .build(),
             )
         }
+        // Custom session commands, not player commands: advertising COMMAND_SEEK_BACK/
+        // FORWARD made the car draw its own seek buttons on LIVE streams too, where they
+        // are meaningless. Custom buttons appear only where this layout puts them.
         return listOf(
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
                 .setDisplayName(context.getString(R.string.aa_seek_back_30))
-                .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+                .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
                 .build(),
             CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
                 .setDisplayName(context.getString(R.string.aa_seek_forward_30))
-                .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+                .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
                 .build(),
             stopButton
                 .setSlots(CommandButton.SLOT_OVERFLOW)
