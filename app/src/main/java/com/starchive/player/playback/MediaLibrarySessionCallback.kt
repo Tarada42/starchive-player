@@ -387,17 +387,18 @@ class MediaLibrarySessionCallback(
      * (non-seekable) items, so this is the only way to guarantee it for both cases.
      */
     fun customLayout(): List<CommandButton> {
-        // Bound to standard player commands, not custom session commands: the car host
-        // recognises COMMAND_SEEK_BACK/FORWARD and can place them in its own skip slots,
-        // and they are never filtered out by the session-command check that drops custom
-        // buttons on legacy controllers.
+        // Must be custom SESSION commands. media3 turns the button list into legacy
+        // PlaybackStateCompat custom actions only for buttons whose session command is a
+        // custom command (PlayerWrapper.createPlaybackStateCompat:1088-1108). Buttons bound
+        // to a player command become ACTION_REWIND/FAST_FORWARD instead, which the car host
+        // ignores for music - that is why they never appeared.
         val seekBack = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
             .setDisplayName(context.getString(R.string.aa_seek_back_30))
-            .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_BACK, Bundle.EMPTY))
             .build()
         val seekForward = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
             .setDisplayName(context.getString(R.string.aa_seek_forward_30))
-            .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_SEEK_FORWARD, Bundle.EMPTY))
             .build()
         val stop = CommandButton.Builder(CommandButton.ICON_STOP)
             .setDisplayName(context.getString(R.string.aa_stop))
