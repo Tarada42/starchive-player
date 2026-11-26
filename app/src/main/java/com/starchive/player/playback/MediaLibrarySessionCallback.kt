@@ -313,9 +313,11 @@ class MediaLibrarySessionCallback(
                     val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
                     val target = (player.currentPosition + delta).coerceIn(0L, duration)
                     player.seekTo(target)
-                    SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
+                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY))
                 } else {
-                    SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED, Bundle.EMPTY)
+                    Futures.immediateFuture(
+                        SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED, Bundle.EMPTY)
+                    )
                 }
             }
             PlaybackService.COMMAND_AA_STOP -> {
