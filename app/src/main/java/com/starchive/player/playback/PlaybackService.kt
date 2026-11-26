@@ -112,32 +112,39 @@ class PlaybackService : MediaLibraryService() {
                 isCastingProvider = { isCasting },
             )
 
-        // Car player buttons: a state-aware favorite heart plus Stop. The host draws no
-        // stop control of its own, and Stop must end playback rather than just pause.
-        // A stop from the car (or anywhere) should not leave a resume point behind.
+        // Player listener: clears the resume point on stop, persists it on pause, and
+        // logs seek capabilities (see the diagnostic below).
         exoPlayer.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_IDLE && exoPlayer.mediaItemCount > 0) {
                     serviceScope.launch { runCatching { repository.clearLastPlayback() } }
                 }
+                // TEMPORARY DIAGNOSTIC: Android Auto decides whether to show -/+30 s from
+                // the seek actions the session advertises. Log what the player offers so
+                // we can tell "commands missing" from "host chooses not to show them".
+                if (playbackState == Player.STATE_READY) {
+                    android.util.Log.i(
+                        "STArchiveAA",
+                        "seekBack=${exoPlayer.isCommandAvailable(Player.COMMAND_SEEK_BACK)} " +
+                            "seekFwd=${exoPlayer.isCommandAvailable(Player.COMMAND_SEEK_FORWARD)} " +
+                            "incBack=${exoPlayer.seekBackIncrement} incFwd=${exoPlayer.seekForwardIncrement} " +
+                            "duration=${exoPlayer.duration}",
+                    )
+                }
             }
 
             // Save the resume point when playback is paused (e.g. arriving at a
             // destination and turning the car off) rather than waiting for the ticker.
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (!isPlaying) persistPlaybackPosition(force = true)
-            }
 
-            // Keep the car's heart in step with the track that is actually playing.
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                serviceScope.launch {
-                    runCatching {
-                        mediaLibrarySession?.setCustomLayout(
-                            librarySessionCallback!!.customLayout(favoriteFilled = currentArtistIsFavorite())
-                        )
-                    }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    // Playback resumed: a later stop should be able to clear again.
+                    librarySessionCallback?.clearStopInProgress()
+                } else {
+                    persistPlaybackPosition(force = true)
                 }
             }
+
         })
 
         // Android Auto drives the session directly, so it never passes through
@@ -152,18 +159,9 @@ class PlaybackService : MediaLibraryService() {
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, librarySessionCallback!!)
             .setSessionActivity(openAppIntent!!)
-            .setCustomLayout(librarySessionCallback!!.customLayout(favoriteFilled = false))
+            .setCustomLayout(librarySessionCallback!!.customLayout())
             .build()
 
-        // Reflect an already-favourited DJ as soon as the answer is known. The car's
-        // legacy controller may ignore the update, but the session stays correct.
-        serviceScope.launch {
-            runCatching {
-                mediaLibrarySession?.setCustomLayout(
-                    librarySessionCallback!!.customLayout(favoriteFilled = currentArtistIsFavorite())
-                )
-            }
-        }
 
         // Google Cast (PHONE ONLY). CastContext init can fail on devices without Play
         // Services — fail soft and keep local playback fully working.
@@ -250,18 +248,6 @@ class PlaybackService : MediaLibraryService() {
         serviceScope.launch { repository.clearLastPlayback() }
     }
 
-    /** True when the DJ behind the current item is a favourite; the car heart mirrors it. */
-    private suspend fun currentArtistIsFavorite(): Boolean {
-        val mediaId = player?.currentMediaItem?.mediaId ?: return false
-        val artistId = if (mediaId.startsWith(LIVE_ID_PREFIX)) {
-            mediaId.removePrefix(LIVE_ID_PREFIX)
-        } else {
-            repository.allTracksById.value[mediaId]?.artistId
-                ?: withContext(Dispatchers.IO) { repository.trackById(mediaId)?.artistId }
-        } ?: return false
-        val favorites = runCatching { repository.favoriteArtists.first() }.getOrDefault(emptySet())
-        return favorites.any { it.equals(artistId, ignoreCase = true) }
-    }
 
     /**
      * Persist the current archive track + position. Live streams are skipped: their
@@ -272,6 +258,7 @@ class PlaybackService : MediaLibraryService() {
         if (!force && !p.isPlaying) return
         // A stop clears the resume point (see the STATE_IDLE listener); never write one
         // back on the way out, or Stop would silently leave something to resume.
+        if (librarySessionCallback?.stopInProgress == true) return
         if (p.playbackState == Player.STATE_IDLE) return
         val mediaId = p.currentMediaItem?.mediaId ?: return
         if (mediaId.startsWith(LIVE_ID_PREFIX)) return

@@ -55,6 +55,15 @@ class MediaLibrarySessionCallback(
     /** Auto-resume is attempted once per service lifetime, not per reconnecting controller. */
     private val autoResumeAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    /** True while a Stop is being handled, so the pause-save cannot resurrect a resume point. */
+    @Volatile
+    var stopInProgress: Boolean = false
+        private set
+
+    fun clearStopInProgress() {
+        stopInProgress = false
+    }
+
     private val executor: ListeningExecutorService =
         MoreExecutors.listeningDecorator(
             Executors.newSingleThreadExecutor { runnable ->
@@ -241,25 +250,17 @@ class MediaLibrarySessionCallback(
                     mediaId.startsWith(LIVE_PREFIX) -> mediaId.removePrefix(LIVE_PREFIX)
                     else -> repository.trackById(mediaId)?.artistId
                 }
-                var nowFavorite = false
                 if (artistId != null) {
-                    val current = repository.favoriteArtists.first()
-                    nowFavorite = artistId !in current
                     val artist = repository.artists.value.find { it.id.equals(artistId, ignoreCase = true) }
                         ?: repository.liveArtists.value.find { it.id.equals(artistId, ignoreCase = true) }
                         ?: Artist(artistId, artistId.replace('_', ' '), thumbnailUrl = null, twitchAvatarUrl = null)
                     repository.toggleFavoriteArtist(artist)
                 }
-                // Reflect the new state in the button; a legacy (car) controller may ignore
-                // this update, in which case only the action takes effect. Session state is
-                // touched on the main looper, never from this IO executor.
-                serviceScope.launch {
-                    runCatching { session.setCustomLayout(controller, customLayout(nowFavorite)) }
-                }
                 SessionResult(SessionResult.RESULT_SUCCESS, Bundle.EMPTY)
                 }
             }
             PlaybackService.COMMAND_AA_STOP -> {
+                stopInProgress = true
                 val wasLive = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
                 session.player.pause()
                 session.player.stop()
@@ -317,22 +318,19 @@ class MediaLibrarySessionCallback(
         player.play()
     }
 
-    /** Car player buttons: favorite heart (state-aware) and stop. */
-    fun customLayout(favoriteFilled: Boolean): List<CommandButton> {
-        val favorite = CommandButton.Builder(
-            if (favoriteFilled) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED
-        )
-            .setDisplayName(context.getString(R.string.aa_favorite))
-            .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_FAVORITE, Bundle.EMPTY))
-            .build()
-        // Custom-layout button rather than a player command: the host drops the transport
-        // stop for live (non-seekable) items, so this is the only way to guarantee a Stop
-        // control is present for both archive sets and live streams.
+    /**
+     * Car player buttons. Only Stop is offered: Android Auto's legacy controller ignores
+     * runtime layout updates, so a heart could never show the real favourite state - it
+     * was permanently empty and only added noise. Favouriting stays available from the
+     * phone. Stop is a custom button because the host drops the transport stop for live
+     * (non-seekable) items, so this is the only way to guarantee it for both cases.
+     */
+    fun customLayout(): List<CommandButton> {
         val stop = CommandButton.Builder(CommandButton.ICON_STOP)
             .setDisplayName(context.getString(R.string.aa_stop))
             .setSessionCommand(SessionCommand(PlaybackService.COMMAND_AA_STOP, Bundle.EMPTY))
             .build()
-        return listOf(favorite, stop)
+        return listOf(stop)
     }
 
     /** Release the background executor when the service is destroyed. */
