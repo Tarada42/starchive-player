@@ -12,6 +12,13 @@ STArchive Player is a native Android music player for the [ST Archive](https://s
 
 > Full overview: **[ABOUT.md](ABOUT.md)** · Upcoming work: **[FEATURES-ROADMAP.md](FEATURES-ROADMAP.md)**
 
+## What's new in 1.6.1
+
+- **Android Auto rebuilt on Media3** — the car now draws the browse list and the player itself: play/pause, −30 s / +30 s on archive sets, Stop on live streams, favourite DJs, newest-first ordering, and a Live row inside each DJ folder.
+- **Live streams lost their dead buttons** — no more seek or skip on something that cannot be seeked. The live queue is genuinely one item now.
+- **Playback survives a swipe, then returns** — pulling the app out of Recents stops playback and casting, and the last archive set resumes at its position when you reconnect to the car.
+- **Toolchain moved up** — Media3 1.11.1, Kotlin 2.2, cast-framework 22.3.1.
+
 ## What's new in 1.6.0
 
 - **Android Auto gets real controls** — the app moved to Media3 1.11.1, whose button preferences Android Auto actually honours. The car player now shows −30 s / +30 s on archive sets alongside Stop, instead of the single button the old library allowed.
