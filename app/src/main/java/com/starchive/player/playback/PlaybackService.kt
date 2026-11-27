@@ -150,7 +150,13 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
-        mediaLibrarySession = MediaLibrarySession.Builder(this, exoPlayer, librarySessionCallback!!)
+        // Android Auto draws a next-track button whenever the *player* advertises skip
+        // commands, whatever the per-controller mask says (it reads PlaybackStateCompat,
+        // which media3 builds from the player). Live streams are one endless mount, so
+        // the commands are masked at the player while live is current.
+        val maskedExoPlayer = LiveSkipMaskingPlayer(exoPlayer)
+        localPlayer = maskedExoPlayer
+        mediaLibrarySession = MediaLibrarySession.Builder(this, maskedExoPlayer, librarySessionCallback!!)
             .setSessionActivity(openAppIntent!!)
             .setMediaButtonPreferences(librarySessionCallback!!.mediaButtonPreferences(live = false))
             .build()
