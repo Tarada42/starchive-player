@@ -150,10 +150,12 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
-        // Android Auto draws a next-track button whenever the *player* advertises skip
-        // commands, whatever the per-controller mask says (it reads PlaybackStateCompat,
-        // which media3 builds from the player). Live streams are one endless mount, so
-        // the commands are masked at the player while live is current.
+        // Android Auto reads the legacy PlaybackStateCompat that media3 builds from the
+        // player's available command set. For a live stream we mask the skip commands and
+        // also COMMAND_SET_SPEED_AND_PITCH: in media3 1.11.1 that command maps to
+        // PlaybackStateCompat.ACTION_SET_PLAYBACK_SPEED (PlaybackStateCompat.java:252),
+        // whose bit position collides with the framework's ACTION_SEEK_TO_NEXT, which is
+        // what the car actually draws as the next-track icon.
         val maskedExoPlayer = LiveSkipMaskingPlayer(exoPlayer)
         localPlayer = maskedExoPlayer
         mediaLibrarySession = MediaLibrarySession.Builder(this, maskedExoPlayer, librarySessionCallback!!)

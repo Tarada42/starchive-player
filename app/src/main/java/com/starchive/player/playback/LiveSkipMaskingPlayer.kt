@@ -4,18 +4,31 @@ import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 
 /**
- * Hides "skip to next / previous" for a live stream, at both doors media3 knocks on.
+ * Hides car "next / previous" and the spurious next icon that [COMMAND_SET_SPEED_AND_PITCH]
+ * creates for a live stream.
  *
- * A live mount is one endless stream, so skipping has no meaning. Removing the commands
- * from the per-controller result in [MediaLibrarySessionCallback.onConnect] is not enough:
- * Android Auto reads PlaybackStateCompat, which media3 builds from the player, and it asks
- * `isCommandAvailable()` rather than reading the command set. [ForwardingPlayer] forwards
- * that call straight to the delegate, so overriding only [getAvailableCommands] left
- * SEEK_TO_NEXT advertised — verified in `dumpsys media_session`, where `actions=` still
- * carried bit 22 (ACTION_SEEK_TO_NEXT) while bit 5 (ACTION_SKIP_TO_NEXT) was gone.
+ * A live mount is one endless stream, so skipping has no meaning. Two earlier attempts
+ * masked only COMMAND_SEEK_TO_NEXT / COMMAND_SEEK_TO_NEXT_MEDIA_ITEM (and the previous
+ * variants) at both [getAvailableCommands] and [isCommandAvailable]. They removed
+ * PlaybackStateCompat.ACTION_SKIP_TO_NEXT (bit 5), but the car still showed a next
+ * button because:
  *
- * Both are overridden here so the command is genuinely unavailable while live is current.
- * Archive playback and every other command are untouched.
+ *  - Media3 builds the legacy PlaybackStateCompat actions from the player command set in
+ *    MediaSessionLegacyStub.createPlaybackStateCompat() (1.11.1
+ *    MediaSessionLegacyStub.java:1914-1921), intersecting the per-controller player
+ *    commands with [player.getAvailableCommands()].
+ *  - COMMAND_SEEK_TO_NEXT is mapped to ACTION_SKIP_TO_NEXT (bit 5) at
+ *    MediaSessionLegacyStub.java:2028-2030, so masking it genuinely cleared bit 5.
+ *  - COMMAND_SET_SPEED_AND_PITCH is mapped to
+ *    PlaybackStateCompat.ACTION_SET_PLAYBACK_SPEED at
+ *    MediaSessionLegacyStub.java:2043-2044.
+ *  - media3's vendored PlaybackStateCompat defines ACTION_SET_PLAYBACK_SPEED as `1 << 22`
+ *    (PlaybackStateCompat.java:252), which collides with the framework's
+ *    PlaybackState.ACTION_SEEK_TO_NEXT bit. The framework MediaSession therefore reports
+ *    bit 22 as ACTION_SEEK_TO_NEXT, and Android Auto draws its next-track icon from it.
+ *
+ * COMMAND_SET_SPEED_AND_PITCH is meaningless for a live stream and is added to the mask.
+ * Archive playback keeps speed, skip, seek and every other command untouched.
  */
 class LiveSkipMaskingPlayer(player: Player) : ForwardingPlayer(player) {
 
@@ -42,6 +55,7 @@ class LiveSkipMaskingPlayer(player: Player) : ForwardingPlayer(player) {
             Player.COMMAND_SEEK_TO_PREVIOUS,
             Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
             Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            Player.COMMAND_SET_SPEED_AND_PITCH,
         )
     }
 }
