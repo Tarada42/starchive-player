@@ -2,6 +2,7 @@ package com.starchive.player.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.util.Log
 import androidx.media3.cast.CastPlayer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -30,6 +31,25 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+
+/**
+ * Temporary diagnostic: logs the current item and whether the commands that draw the car's
+ * next-track icon are still advertised. Fires on media item transition and when Android Auto
+ * (the media-notification controller) connects. Cheap: only reads current state, no per-position
+ * work.
+ */
+internal fun logLiveCommandDiagnostics(player: Player?, source: String) {
+    if (player == null) return
+    if (!player.isCommandAvailable(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)) return
+    val mediaId = player.currentMediaItem?.mediaId ?: "null"
+    val isLive = player.isCurrentMediaItemLive()
+    val seekNext = player.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT)
+    val speedPitch = player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)
+    Log.i(
+        "STArchiveAA",
+        "liveCommandState source=$source mediaId=$mediaId isLive=$isLive seekNext=$seekNext speedPitch=$speedPitch",
+    )
+}
 
 /**
  * Background playback service (Media3 MediaLibraryService).
@@ -126,6 +146,7 @@ class PlaybackService : MediaLibraryService() {
             // Archive and live items need different car buttons, so republish the layout
             // when the current item changes.
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                logLiveCommandDiagnostics(player, "onMediaItemTransition")
                 publishCarLayout()
             }
 
@@ -157,6 +178,7 @@ class PlaybackService : MediaLibraryService() {
         // whose bit position collides with the framework's ACTION_SEEK_TO_NEXT, which is
         // what the car actually draws as the next-track icon.
         val maskedExoPlayer = LiveSkipMaskingPlayer(exoPlayer)
+        player = maskedExoPlayer
         localPlayer = maskedExoPlayer
         mediaLibrarySession = MediaLibrarySession.Builder(this, maskedExoPlayer, librarySessionCallback!!)
             .setSessionActivity(openAppIntent!!)
@@ -224,7 +246,7 @@ class PlaybackService : MediaLibraryService() {
     private fun transferPlaybackState(from: Player, to: Player) {
         val items = (0 until from.mediaItemCount).map { from.getMediaItemAt(it) }
         if (items.isNotEmpty()) {
-            val isLive = from.currentMediaItem?.mediaId?.startsWith("live-") == true
+            val isLive = from.isLiveNow()
             val startPositionMs = if (isLive) 0L else from.currentPosition.coerceAtLeast(0L)
             to.setMediaItems(
                 items,
@@ -254,7 +276,7 @@ class PlaybackService : MediaLibraryService() {
     private fun publishCarLayout() {
         val session = mediaLibrarySession ?: return
         val callback = librarySessionCallback ?: return
-        val live = player?.currentMediaItem?.mediaId?.startsWith(LIVE_ID_PREFIX) == true
+        val live = player?.isLiveNow() == true
         val buttons = callback.mediaButtonPreferences(live)
         runCatching {
             // Update the session's preferences for future controllers.
@@ -280,8 +302,8 @@ class PlaybackService : MediaLibraryService() {
         // back on the way out, or Stop would silently leave something to resume.
         if (librarySessionCallback?.stopInProgress == true) return
         if (p.playbackState == Player.STATE_IDLE) return
+        if (p.isLiveNow()) return
         val mediaId = p.currentMediaItem?.mediaId ?: return
-        if (mediaId.startsWith(LIVE_ID_PREFIX)) return
         val position = p.currentPosition
         if (position <= 0L) return
         serviceScope.launch {
@@ -351,8 +373,5 @@ class PlaybackService : MediaLibraryService() {
 
         /** How often playback position is persisted for the resume point. */
         private const val POSITION_SAVE_INTERVAL_MS = 5_000L
-
-        /** Must match the prefix the browse tree uses for live items. */
-        private const val LIVE_ID_PREFIX = "live-"
     }
 }

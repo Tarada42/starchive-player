@@ -207,7 +207,7 @@ class MediaLibrarySessionCallback(
             .add(Player.COMMAND_STOP)
             .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
             .build()
-        val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+        val live = session.player.isLiveNow()
         return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
             .setAvailableSessionCommands(sessionCommands)
             .setAvailablePlayerCommands(playerCommands)
@@ -227,7 +227,8 @@ class MediaLibrarySessionCallback(
         // MediaSessionImpl.setMediaButtonPreferences(ControllerInfo):578-590).
         if (!session.isMediaNotificationController(controller)) return
         runCatching {
-            val live = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+            logLiveCommandDiagnostics(session.player, "onPostConnect")
+            val live = session.player.isLiveNow()
             val buttons = mediaButtonPreferences(live)
             android.util.Log.i(
                 "STArchiveAA",
@@ -262,7 +263,7 @@ class MediaLibrarySessionCallback(
             -> {
                 val delta = if (customCommand.customAction == PlaybackService.COMMAND_AA_SEEK_BACK) -30_000L else 30_000L
                 val player = session.player
-                val live = player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+                val live = player.isLiveNow()
                 if (live) {
                     Futures.immediateFuture(
                         SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED, Bundle.EMPTY)
@@ -275,7 +276,7 @@ class MediaLibrarySessionCallback(
             }
             PlaybackService.COMMAND_AA_STOP -> {
                 stopInProgress = true
-                val wasLive = session.player.currentMediaItem?.mediaId?.startsWith(LIVE_PREFIX) == true
+                val wasLive = session.player.isLiveNow()
                 session.player.pause()
                 session.player.stop()
                 if (wasLive) {
